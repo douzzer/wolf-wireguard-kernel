@@ -6,9 +6,11 @@
 #ifndef _WG_MESSAGES_H
 #define _WG_MESSAGES_H
 
+#ifndef WOLFCRYPTO_SHIM_H
 #include <zinc/curve25519.h>
 #include <zinc/chacha20poly1305.h>
 #include <zinc/blake2s.h>
+#endif
 
 #include <linux/kernel.h>
 #include <linux/param.h>
