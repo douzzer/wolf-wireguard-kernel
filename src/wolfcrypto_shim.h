@@ -152,9 +152,9 @@ chacha20poly1305_decrypt(u8 *dst, const u8 *src, const size_t src_len,
 }
 
 #define xchacha20poly1305_encrypt(dst, src, src_len, ad, ad_len, nonce, key) \
-  DBG_PRNT_NZ(wc_XChaCha20Poly1305_encrypt_oneshot(dst, (src_len) + POLY1305_DIGEST_SIZE, src, src_len, ad, ad_len, nonce, XCHACHA20POLY1305_NONCE_SIZE, key, CHACHA20POLY1305_KEY_SIZE))
+  DBG_PRNT_NZ(wc_XChaCha20Poly1305_Encrypt(dst, (src_len) + POLY1305_DIGEST_SIZE, src, src_len, ad, ad_len, nonce, XCHACHA20POLY1305_NONCE_SIZE, key, CHACHA20POLY1305_KEY_SIZE))
 #define xchacha20poly1305_decrypt(dst, src, src_len, ad, ad_len, nonce, key) \
-  (DBG_PRNT_NZ(wc_XChaCha20Poly1305_decrypt_oneshot(dst, (src_len) - POLY1305_DIGEST_SIZE, src, src_len, ad, ad_len, nonce, XCHACHA20POLY1305_NONCE_SIZE, key, CHACHA20POLY1305_KEY_SIZE)) == 0)
+  (DBG_PRNT_NZ(wc_XChaCha20Poly1305_Decrypt(dst, (src_len) - POLY1305_DIGEST_SIZE, src, src_len, ad, ad_len, nonce, XCHACHA20POLY1305_NONCE_SIZE, key, CHACHA20POLY1305_KEY_SIZE)) == 0)
 
 #define chacha20poly1305_encrypt_sg_inplace(...) \
   chacha20poly1305_encrypt_sg_inplace_wolfshim(__VA_ARGS__)
