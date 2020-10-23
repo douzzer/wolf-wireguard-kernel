@@ -42,9 +42,9 @@
 #error "WireGuard requires Linux >= 3.10"
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0)
-#error "WireGuard has been merged into Linux >= 5.6 and therefore this compatibility module is no longer required."
-#endif
+/* #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0) */
+/* #error "WireGuard has been merged into Linux >= 5.6 and therefore this compatibility module is no longer required." */
+/* #endif */
 
 #if defined(ISRHEL7)
 #include <linux/skbuff.h>
@@ -872,7 +872,7 @@ static inline void skb_mark_not_on_list(struct sk_buff *skb)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+#if !defined(USE_WOLFCRYPT) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0))
 #define blake2s_init zinc_blake2s_init
 #define blake2s_init_key zinc_blake2s_init_key
 #define blake2s_update zinc_blake2s_update
