@@ -1,10 +1,6 @@
 #include "wolfcrypto_shim.h"
 #include <crypto/scatterwalk.h>
 
-#ifdef MODULE_IMPORT_NS
-MODULE_IMPORT_NS(WOLFSSL);
-#endif
-
 int curve25519_generate_public(uint8_t pub[static CURVE25519_KEY_SIZE], const uint8_t secret[static CURVE25519_KEY_SIZE]) {
     uint8_t secret_copy[CURVE25519_KEY_SIZE]; /* pubkey_main() calls curve25519_generate_public() with pub == secret, which doesn't work for wc_curve25519_make_pub(). */
     XMEMCPY(secret_copy, secret, CURVE25519_KEY_SIZE);
