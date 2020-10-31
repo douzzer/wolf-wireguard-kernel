@@ -18,7 +18,10 @@ include $(src)/compat/Kbuild.include
 obj-$(if $(KBUILD_EXTMOD),m,$(CONFIG_WIREGUARD)) := wireguard.o
 
 ifdef WOLFCRYPT
-ccflags-y += -DUSE_WOLFCRYPT -I$(src)/../../../../wolfssl -include $(src)/wolfcrypto_shim.h
+ifndef WOLFSSL_ROOT
+WOLFSSL_ROOT = $(src)/../../../../wolfssl
+endif
+ccflags-y += -DUSE_WOLFCRYPT -I$(WOLFSSL_ROOT) -include $(src)/wolfcrypto_shim.h
 wireguard-y += wolfcrypto_shim.o
-KBUILD_EXTRA_SYMBOLS := $(src)/../../../../wolfssl/linuxkm/Module.symvers
+KBUILD_EXTRA_SYMBOLS := $(WOLFSSL_ROOT)/linuxkm/Module.symvers
 endif
