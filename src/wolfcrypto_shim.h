@@ -18,12 +18,6 @@
 #error libwolfssl missing HAVE_POLY1305
 #endif
 
-#undef SHA256_BLOCK_SIZE
-#undef SHA256_DIGEST_SIZE
-#undef SHA224_BLOCK_SIZE
-#undef SHA224_DIGEST_SIZE
-#undef CURVE25519_KEYSIZE
-
 #include <wolfssl/wolfcrypt/wc_port.h>
 #include <wolfssl/wolfcrypt/error-crypt.h>
 #define WOLFSSL_MISC_INCLUDED
@@ -46,6 +40,11 @@
 #include <wolfssl/wolfcrypt/blake2.h>
 #define BLAKE2S_HASH_SIZE BLAKE2S_256
 #define BLAKE2S_BLOCK_SIZE 64
+
+#undef SHA256_BLOCK_SIZE
+#undef SHA256_DIGEST_SIZE
+#undef SHA224_BLOCK_SIZE
+#undef SHA224_DIGEST_SIZE
 
 #include <linux/kconfig.h>
 #include <linux/simd.h>
