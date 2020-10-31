@@ -1043,7 +1043,8 @@ static inline void skb_reset_redirect(struct sk_buff *skb)
 #define pre_exit exit
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+/* note, somewhere >5.4.0 and <=5.4.72, ip_tunnel_parse_protocol() was backported to the 5.4-LTS kernel. */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && ! (LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0) && (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 4, 72)))
 #include <linux/skbuff.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
