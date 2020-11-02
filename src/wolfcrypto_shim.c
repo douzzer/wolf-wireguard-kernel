@@ -1,74 +1,80 @@
 #include "wolfcrypto_shim.h"
 #include <crypto/scatterwalk.h>
 
-int curve25519_generate_public(uint8_t pub[static CURVE25519_KEY_SIZE], const uint8_t secret[static CURVE25519_KEY_SIZE]) {
-    uint8_t secret_copy[CURVE25519_KEY_SIZE]; /* pubkey_main() calls curve25519_generate_public() with pub == secret, which doesn't work for wc_curve25519_make_pub(). */
+int curve25519_generate_public(
+    uint8_t pub[static CURVE25519_KEY_SIZE],
+    const uint8_t secret[static CURVE25519_KEY_SIZE])
+{
+    /* pubkey_main() calls curve25519_generate_public() with pub == secret,
+     * which doesn't work for wc_curve25519_make_pub().
+     */
+    uint8_t secret_copy[CURVE25519_KEY_SIZE];
     XMEMCPY(secret_copy, secret, CURVE25519_KEY_SIZE);
     return !DBG_PRNT_NZ(wc_curve25519_make_pub(CURVE25519_KEY_SIZE, pub, CURVE25519_KEY_SIZE, secret_copy));
 }
 
 int curve25519_generate_secret(u8 secret[CURVE25519_KEY_SIZE]) {
-  WC_RNG *gRng = wc_rng_new(NULL /* nonce */, 0 /* nonceSz */, NULL /*heap */);
-  if (gRng) {
-    (void)DBG_PRNT_NZ(wc_curve25519_make_priv(gRng, (int)CURVE25519_KEY_SIZE, (byte *)secret));
-    wc_rng_free(gRng);
-    return 0;
-  } else
-    return -ENOMEM;
+    WC_RNG *gRng = wc_rng_new(NULL /* nonce */, 0 /* nonceSz */, NULL /*heap */);
+    if (gRng) {
+        (void)DBG_PRNT_NZ(wc_curve25519_make_priv(gRng, (int)CURVE25519_KEY_SIZE, (byte *)secret));
+        wc_rng_free(gRng);
+        return 0;
+    } else
+        return -ENOMEM;
 }
 
 int blake2s(byte *out, const void *in, const void *key, const byte outlen,
-             const word32 inlen, byte keylen)
+            const word32 inlen, byte keylen)
 {
-  Blake2s state;
+    Blake2s state;
 
-  if ((in == NULL) || (out == NULL))
-    return -1;
+    if ((in == NULL) || (out == NULL))
+        return -1;
 
-  if (DBG_PRNT_NZ(wc_InitBlake2s_WithKey(&state, (word32)outlen, (const byte *)key, (word32)keylen)) < 0)
-    return -1;
-  if (DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)in, inlen)) < 0)
-    return -1;
-  return DBG_PRNT_NZ(wc_Blake2sFinal(&state, out, (word32)outlen));
+    if (DBG_PRNT_NZ(wc_InitBlake2s_WithKey(&state, (word32)outlen, (const byte *)key, (word32)keylen)) < 0)
+        return -1;
+    if (DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)in, inlen)) < 0)
+        return -1;
+    return DBG_PRNT_NZ(wc_Blake2sFinal(&state, out, (word32)outlen));
 }
 
 void blake2s_hmac(byte *out, const byte *in, const byte *key, size_t outlen, size_t inlen, size_t keylen) {
-  Blake2s state;
-  word32 x_key[BLAKE2S_BLOCK_SIZE / sizeof(word32)];
-  word32 i_hash[BLAKE2S_HASH_SIZE / sizeof(word32)];
-  int i;
+    Blake2s state;
+    word32 x_key[BLAKE2S_BLOCK_SIZE / sizeof(word32)];
+    word32 i_hash[BLAKE2S_HASH_SIZE / sizeof(word32)];
+    int i;
 
-  if (outlen != BLAKE2S_HASH_SIZE)
-    return;
+    if (outlen != BLAKE2S_HASH_SIZE)
+        return;
 
-  if (keylen > BLAKE2S_BLOCK_SIZE) {
+    if (keylen > BLAKE2S_BLOCK_SIZE) {
+        DBG_PRNT_NZ(wc_InitBlake2s(&state, BLAKE2S_HASH_SIZE));
+        DBG_PRNT_NZ(wc_Blake2sUpdate(&state, key, keylen));
+        DBG_PRNT_NZ(wc_Blake2sFinal(&state, (byte *)x_key, 0));
+    } else {
+        XMEMCPY(x_key, key, keylen);
+        XMEMSET((byte *)x_key + keylen, 0, BLAKE2S_BLOCK_SIZE - keylen);
+    }
+
+    for (i = 0; i < BLAKE2S_BLOCK_SIZE; ++i)
+        ((byte *)x_key)[i] ^= 0x36;
+
     DBG_PRNT_NZ(wc_InitBlake2s(&state, BLAKE2S_HASH_SIZE));
-    DBG_PRNT_NZ(wc_Blake2sUpdate(&state, key, keylen));
-    DBG_PRNT_NZ(wc_Blake2sFinal(&state, (byte *)x_key, 0));
-  } else {
-    XMEMCPY(x_key, key, keylen);
-    XMEMSET((byte *)x_key + keylen, 0, BLAKE2S_BLOCK_SIZE - keylen);
-  }
+    DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)x_key, BLAKE2S_BLOCK_SIZE));
+    DBG_PRNT_NZ(wc_Blake2sUpdate(&state, in, inlen));
+    DBG_PRNT_NZ(wc_Blake2sFinal(&state, (byte *)i_hash, 0));
 
-  for (i = 0; i < BLAKE2S_BLOCK_SIZE; ++i)
-    ((byte *)x_key)[i] ^= 0x36;
+    for (i = 0; i < BLAKE2S_BLOCK_SIZE; ++i)
+        ((byte *)x_key)[i] ^= 0x5c ^ 0x36;
 
-  DBG_PRNT_NZ(wc_InitBlake2s(&state, BLAKE2S_HASH_SIZE));
-  DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)x_key, BLAKE2S_BLOCK_SIZE));
-  DBG_PRNT_NZ(wc_Blake2sUpdate(&state, in, inlen));
-  DBG_PRNT_NZ(wc_Blake2sFinal(&state, (byte *)i_hash, 0));
+    DBG_PRNT_NZ(wc_InitBlake2s(&state, BLAKE2S_HASH_SIZE));
+    DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)x_key, BLAKE2S_BLOCK_SIZE));
+    DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)i_hash, BLAKE2S_HASH_SIZE));
+    DBG_PRNT_NZ(wc_Blake2sFinal(&state, (byte *)i_hash, 0));
 
-  for (i = 0; i < BLAKE2S_BLOCK_SIZE; ++i)
-    ((byte *)x_key)[i] ^= 0x5c ^ 0x36;
-
-  DBG_PRNT_NZ(wc_InitBlake2s(&state, BLAKE2S_HASH_SIZE));
-  DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)x_key, BLAKE2S_BLOCK_SIZE));
-  DBG_PRNT_NZ(wc_Blake2sUpdate(&state, (byte *)i_hash, BLAKE2S_HASH_SIZE));
-  DBG_PRNT_NZ(wc_Blake2sFinal(&state, (byte *)i_hash, 0));
-
-  XMEMCPY(out, i_hash, BLAKE2S_HASH_SIZE);
-  XMEMSET(x_key, 0, BLAKE2S_BLOCK_SIZE);
-  XMEMSET(i_hash, 0, BLAKE2S_HASH_SIZE);
+    XMEMCPY(out, i_hash, BLAKE2S_HASH_SIZE);
+    XMEMSET(x_key, 0, BLAKE2S_BLOCK_SIZE);
+    XMEMSET(i_hash, 0, BLAKE2S_HASH_SIZE);
 }
 
 void blake2s256_hmac(byte *out, const byte *in, const byte *key, size_t inlen, size_t keylen) {
@@ -132,8 +138,12 @@ static bool chacha20poly1305_crypt_sg_inplace(struct scatterlist *src,
     if ((ret = wc_Poly1305_EncodeSizes(&aead->poly, ad_len, src_len)) < 0)
         goto out;
 
+    /* the remaining length (sl) really will be conditionally negative after
+     * iteration -- this is Jason Donenfeld's algorithm from
+     * chacha20poly1305_crypt_sg_inplace() in Linux
+     * lib/crypto/chacha20poly1305.c.
+     */
     if (sl <= -POLY1305_DIGEST_SIZE) {
-
         if (isEncrypt) {
             if ((ret = wc_Poly1305Final(&aead->poly, miter.addr + miter.length + sl)) < 0)
                 goto out;
