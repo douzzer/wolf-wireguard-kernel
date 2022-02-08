@@ -10,7 +10,18 @@ ccflags-$(if $(WIREGUARD_VERSION),y,) += -D'WIREGUARD_VERSION="$(WIREGUARD_VERSI
 
 wireguard-y := main.o noise.o device.o peer.o timers.o queueing.o send.o receive.o socket.o peerlookup.o allowedips.o ratelimiter.o cookie.o netlink.o
 
+ifndef WOLFCRYPT
 include $(src)/crypto/Kbuild.include
+endif
 include $(src)/compat/Kbuild.include
 
 obj-$(if $(KBUILD_EXTMOD),m,$(CONFIG_WIREGUARD)) := wireguard.o
+
+ifdef WOLFCRYPT
+ifndef WOLFSSL_ROOT
+WOLFSSL_ROOT = $(src)/../../../../wolfssl
+endif
+ccflags-y += -DUSE_WOLFCRYPT -I$(WOLFSSL_ROOT) -include $(src)/wolfcrypto_shim.h
+wireguard-y += wolfcrypto_shim.o
+KBUILD_EXTRA_SYMBOLS := $(WOLFSSL_ROOT)/linuxkm/Module.symvers
+endif
