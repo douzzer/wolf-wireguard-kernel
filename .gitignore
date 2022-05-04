@@ -3,6 +3,7 @@ cscope.out
 *.d
 *.dwo
 *.ko
+*.mod
 *.mod.c
 *.a
 Module.symvers

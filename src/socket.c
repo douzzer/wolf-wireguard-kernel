@@ -49,7 +49,11 @@ static int send4(struct wg_device *wg, struct sk_buff *skb,
 		rt = dst_cache_get_ip4(cache, &fl.saddr);
 
 	if (!rt) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+		security_sk_classify_flow(sock, flowi4_to_flowi_common(&fl));
+#else
 		security_sk_classify_flow(sock, flowi4_to_flowi(&fl));
+#endif
 		if (unlikely(!inet_confirm_addr(sock_net(sock), NULL, 0,
 						fl.saddr, RT_SCOPE_HOST))) {
 			endpoint->src4.s_addr = 0;
@@ -129,7 +133,11 @@ static int send6(struct wg_device *wg, struct sk_buff *skb,
 		dst = dst_cache_get_ip6(cache, &fl.saddr);
 
 	if (!dst) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+		security_sk_classify_flow(sock, flowi6_to_flowi_common(&fl));
+#else
 		security_sk_classify_flow(sock, flowi6_to_flowi(&fl));
+#endif
 		if (unlikely(!ipv6_addr_any(&fl.saddr) &&
 			     !ipv6_chk_addr(sock_net(sock), &fl.saddr, NULL, 0))) {
 			endpoint->src6 = fl.saddr = in6addr_any;
