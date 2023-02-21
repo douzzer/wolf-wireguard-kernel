@@ -8,7 +8,6 @@
 #include "peer.h"
 #include "queueing.h"
 #include "socket.h"
-
 /*
  * - Timer for retransmitting the handshake if we don't hear back after
  * `REKEY_TIMEOUT + jitter` ms.
@@ -147,7 +146,12 @@ void wg_timers_data_sent(struct wg_peer *peer)
 	if (!timer_pending(&peer->timer_new_handshake))
 		mod_peer_timer(peer, &peer->timer_new_handshake,
 			jiffies + (KEEPALIVE_TIMEOUT + REKEY_TIMEOUT) * HZ +
-			prandom_u32_max(REKEY_TIMEOUT_JITTER_MAX_JIFFIES));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+			get_random_u32_below(REKEY_TIMEOUT_JITTER_MAX_JIFFIES)
+#else
+			prandom_u32_max(REKEY_TIMEOUT_JITTER_MAX_JIFFIES)
+#endif
+                    );
 }
 
 /* Should be called after an authenticated data packet is received. */
@@ -183,7 +187,12 @@ void wg_timers_handshake_initiated(struct wg_peer *peer)
 {
 	mod_peer_timer(peer, &peer->timer_retransmit_handshake,
 		       jiffies + REKEY_TIMEOUT * HZ +
-		       prandom_u32_max(REKEY_TIMEOUT_JITTER_MAX_JIFFIES));
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 2, 0))
+                       get_random_u32_below(REKEY_TIMEOUT_JITTER_MAX_JIFFIES)
+#else
+                       prandom_u32_max(REKEY_TIMEOUT_JITTER_MAX_JIFFIES)
+#endif
+            );
 }
 
 /* Should be called after a handshake response message is received and processed
