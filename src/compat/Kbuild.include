@@ -42,7 +42,7 @@ ccflags-y += -I$(kbuild-dir)/compat/udp_tunnel/include
 wireguard-y += compat/udp_tunnel/udp_tunnel.o
 endif
 
-ifeq ($(shell grep -s -F "int crypto_memneq" "$(srctree)/include/crypto/algapi.h"),)
+ifeq ($(shell grep -s -F "int crypto_memneq" "$(srctree)/include/crypto/algapi.h" "$(srctree)/include/crypto/utils.h"),)
 ccflags-y += -include $(kbuild-dir)/compat/memneq/include.h
 wireguard-y += compat/memneq/memneq.o
 endif
