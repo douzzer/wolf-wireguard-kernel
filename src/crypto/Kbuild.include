@@ -45,7 +45,8 @@ kbuild-dir := $(if $(filter /%,$(src)),$(src),$(srctree)/$(src))
 targets := $(patsubst $(kbuild-dir)/%.pl,%.S,$(wildcard $(patsubst %.o,$(kbuild-dir)/crypto/zinc/%.pl,$(zinc-y) $(zinc-m) $(zinc-))))
 
 # Old kernels don't set this, which causes trouble.
-.SECONDARY:
+# breaks "make clean" on kernel 6.4 with ".NOTINTERMEDIATE and .SECONDARY are mutually exclusive."
+# .SECONDARY:
 
 wireguard-y += $(addprefix crypto/zinc/,$(zinc-y))
 ccflags-y += -I$(kbuild-dir)/crypto/include
