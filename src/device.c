@@ -23,6 +23,9 @@
 #include <net/rtnetlink.h>
 #include <net/ip_tunnels.h>
 #include <net/addrconf.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10)
+#include <net/gso.h>
+#endif
 
 static LIST_HEAD(device_list);
 
