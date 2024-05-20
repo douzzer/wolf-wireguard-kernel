@@ -18,6 +18,10 @@
 #error libwolfssl missing HAVE_POLY1305
 #endif
 
+/* internal file misc.c at commit d9f7629296 has inline CopyString() that calls
+ * XMALLOC().
+ */
+#include <linux/slab.h>
 #include <wolfssl/wolfcrypt/wc_port.h>
 #include <wolfssl/wolfcrypt/error-crypt.h>
 #define WOLFSSL_MISC_INCLUDED
