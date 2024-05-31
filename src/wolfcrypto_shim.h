@@ -68,14 +68,14 @@ struct blake2s_state {
     Blake2s blake2s;
 };
 #define blake2s_init(...) wc_wg_blake2s_init(__VA_ARGS__)
-static void __attribute__((unused)) inline blake2s_init(
+static inline __attribute__((unused)) void blake2s_init(
     struct blake2s_state *state,
     size_t outlen)
 {
     DBG_PRNT_NZ(wc_InitBlake2s(&state->blake2s, (word32)outlen));
 }
 #define blake2s_init_key(...) wc_wg_blake2s_init_key(__VA_ARGS__)
-static void __attribute__((unused)) inline blake2s_init_key(
+static inline __attribute__((unused)) void blake2s_init_key(
     struct blake2s_state *state,
     size_t outlen,
     const void *key,
@@ -88,7 +88,7 @@ static void __attribute__((unused)) inline blake2s_init_key(
                     (word32)keylen));
 }
 #define blake2s_update(...) wc_wg_blake2s_update(__VA_ARGS__)
-static void __attribute__((unused)) inline blake2s_update(
+static inline __attribute__((unused)) void blake2s_update(
     struct blake2s_state *state,
     const u8 *in,
     size_t inlen)
@@ -96,7 +96,7 @@ static void __attribute__((unused)) inline blake2s_update(
     DBG_PRNT_NZ(wc_Blake2sUpdate(&state->blake2s, (const byte *)in, (word32)inlen));
 }
 #define blake2s_final(...) wc_wg_blake2s_final(__VA_ARGS__)
-static void __attribute__((unused)) inline blake2s_final(
+static inline __attribute__((unused)) void blake2s_final(
     struct blake2s_state *state,
     const u8 *out) {
     DBG_PRNT_NZ(wc_Blake2sFinal(&state->blake2s, (byte *)out, 0));
@@ -152,7 +152,7 @@ static inline bool curve25519(
             == 0 ? true : false);
 }
 
-static __attribute__((unused)) inline void
+static inline __attribute__((unused)) void
 chacha20poly1305_encrypt(u8 *dst, const u8 *src, const size_t src_len,
                          const u8 *ad, const size_t ad_len,
                          const u64 nonce,
@@ -171,7 +171,7 @@ chacha20poly1305_encrypt(u8 *dst, const u8 *src, const size_t src_len,
     DBG_PRNT_NZ(wc_ChaCha20Poly1305_Final(&aead, dst + src_len));
 }
 
-static __attribute__((unused)) inline bool
+static inline __attribute__((unused)) bool
 chacha20poly1305_decrypt(u8 *dst, const u8 *src, const size_t src_len,
                          const u8 *ad, const size_t ad_len,
                          const u64 nonce,
