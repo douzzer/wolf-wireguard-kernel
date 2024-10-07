@@ -11,6 +11,11 @@
 #include "peer.h"
 #include "messages.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+    /* kludge to work around broken pagemap.h, re min() and max(), due to 84429b675bcfd */
+    #define _LINUX_PAGEMAP_H
+#endif /* >= 6.12.0 */
+
 #include <linux/module.h>
 #include <linux/rtnetlink.h>
 #include <linux/inet.h>
@@ -294,7 +299,11 @@ static void wg_setup(struct net_device *dev)
 #else
 	dev->tx_queue_len = 0;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+        dev->lltx = true;
+#else
 	dev->features |= NETIF_F_LLTX;
+#endif
 	dev->features |= WG_NETDEV_FEATURES;
 	dev->hw_features |= WG_NETDEV_FEATURES;
 	dev->hw_enc_features |= WG_NETDEV_FEATURES;
