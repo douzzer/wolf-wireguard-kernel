@@ -55,11 +55,17 @@
 #include <linux/kernel.h>
 #include <linux/scatterlist.h>
 
+#define PRNT_NZ(...)                                                    \
+    ({                                                                  \
+        int _ret = (__VA_ARGS__);                                       \
+        if (_ret) {                                                     \
+            printk(KERN_NOTICE "%s@%d: %d\n", __FILE__, __LINE__, _ret); \
+        }                                                               \
+        _ret;                                                           \
+    })
+
 #ifdef DEBUG
-#define DBG_PRNT_NZ(...) ({ int _ret = (__VA_ARGS__);                              \
-            if (_ret)                                                              \
-                printk(KERN_NOTICE "%s@%d: %d\n", __FILE__, __LINE__, _ret); _ret; \
-        })
+#define DBG_PRNT_NZ(...) PRNT_NZ(__VA_ARGS__)
 #else
 #define DBG_PRNT_NZ(...) (__VA_ARGS__)
 #endif
@@ -168,7 +174,7 @@ chacha20poly1305_encrypt(u8 *dst, const u8 *src, const size_t src_len,
     if (src_len)
         DBG_PRNT_NZ(wc_ChaCha20Poly1305_UpdateData(&aead, src, dst,
                                                    (u32)src_len));
-    DBG_PRNT_NZ(wc_ChaCha20Poly1305_Final(&aead, dst + src_len));
+    PRNT_NZ(wc_ChaCha20Poly1305_Final(&aead, dst + src_len));
 }
 
 static inline __attribute__((unused)) bool
