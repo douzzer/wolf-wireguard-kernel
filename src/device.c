@@ -32,6 +32,12 @@
 #include <net/gso.h>
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+    /* see linux 326534e837 and 8fa7292fee */
+    #define del_timer timer_delete
+    #define del_timer_sync timer_delete_sync
+#endif
+
 static LIST_HEAD(device_list);
 
 static int wg_open(struct net_device *dev)
