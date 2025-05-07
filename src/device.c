@@ -28,7 +28,8 @@
 #include <net/rtnetlink.h>
 #include <net/ip_tunnels.h>
 #include <net/addrconf.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10)) || \
+    (defined(RHEL_MAJOR) && ((RHEL_MAJOR > 9) || ((RHEL_MAJOR == 9) && (RHEL_MINOR >= 5))))
 #include <net/gso.h>
 #endif
 

@@ -24,7 +24,8 @@ static void update_rx_stats(struct wg_peer *peer, size_t len)
 		get_cpu_ptr(peer->device->dev->tstats);
 
 	u64_stats_update_begin(&tstats->syncp);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 0, 0)) || \
+    (defined(RHEL_MAJOR) && ((RHEL_MAJOR > 9) || ((RHEL_MAJOR == 9) && (RHEL_MINOR >= 5))))
         u64_stats_inc(&tstats->rx_packets);
         u64_stats_add(&tstats->rx_bytes, len);
 #else
