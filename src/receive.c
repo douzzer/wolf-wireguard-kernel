@@ -103,7 +103,7 @@ static int prepare_skb_header(struct sk_buff *skb, struct wg_device *wg)
 	return 0;
 }
 
-static void wg_receive_handshake_packet(struct wg_device *wg,
+static int wg_receive_handshake_packet(struct wg_device *wg,
 					struct sk_buff *skb)
 {
 	enum cookie_mac_state mac_state;
@@ -118,9 +118,8 @@ static void wg_receive_handshake_packet(struct wg_device *wg,
 	if (SKB_TYPE_LE32(skb) == cpu_to_le32(MESSAGE_HANDSHAKE_COOKIE)) {
 		net_dbg_skb_ratelimited("%s: Receiving cookie response from %pISpfsc\n",
 					wg->dev->name, skb);
-		wg_cookie_message_consume(
+		return wg_cookie_message_consume(
 			(struct message_handshake_cookie *)skb->data, wg);
-		return;
 	}
 
 	under_load = skb_queue_len(&wg->incoming_handshakes) >=
@@ -142,7 +141,7 @@ static void wg_receive_handshake_packet(struct wg_device *wg,
 	} else {
 		net_dbg_skb_ratelimited("%s: Invalid MAC of handshake, dropping packet from %pISpfsc\n",
 					wg->dev->name, skb);
-		return;
+		return -EBADMSG;
 	}
 
 	switch (SKB_TYPE_LE32(skb)) {
@@ -151,15 +150,14 @@ static void wg_receive_handshake_packet(struct wg_device *wg,
 			(struct message_handshake_initiation *)skb->data;
 
 		if (packet_needs_cookie) {
-			wg_packet_send_handshake_cookie(wg, skb,
+			return wg_packet_send_handshake_cookie(wg, skb,
 							message->sender_index);
-			return;
 		}
 		peer = wg_noise_handshake_consume_initiation(message, wg);
 		if (unlikely(!peer)) {
 			net_dbg_skb_ratelimited("%s: Invalid handshake initiation from %pISpfsc\n",
 						wg->dev->name, skb);
-			return;
+			return -EBADMSG;
 		}
 		wg_socket_set_peer_endpoint_from_skb(peer, skb);
 		net_dbg_ratelimited("%s: Receiving handshake initiation from peer %llu (%pISpfsc)\n",
@@ -173,15 +171,14 @@ static void wg_receive_handshake_packet(struct wg_device *wg,
 			(struct message_handshake_response *)skb->data;
 
 		if (packet_needs_cookie) {
-			wg_packet_send_handshake_cookie(wg, skb,
+			return wg_packet_send_handshake_cookie(wg, skb,
 							message->sender_index);
-			return;
 		}
 		peer = wg_noise_handshake_consume_response(message, wg);
 		if (unlikely(!peer)) {
 			net_dbg_skb_ratelimited("%s: Invalid handshake response from %pISpfsc\n",
 						wg->dev->name, skb);
-			return;
+			return -EINVAL;
 		}
 		wg_socket_set_peer_endpoint_from_skb(peer, skb);
 		net_dbg_ratelimited("%s: Receiving handshake response from peer %llu (%pISpfsc)\n",
@@ -205,7 +202,7 @@ static void wg_receive_handshake_packet(struct wg_device *wg,
 
 	if (unlikely(!peer)) {
 		WARN(1, "Somehow a wrong type of packet wound up in the handshake queue!\n");
-		return;
+		return -EBADMSG;
 	}
 
 	local_bh_disable();
@@ -215,6 +212,8 @@ static void wg_receive_handshake_packet(struct wg_device *wg,
 	wg_timers_any_authenticated_packet_received(peer);
 	wg_timers_any_authenticated_packet_traversal(peer);
 	wg_peer_put(peer);
+
+	return 0;
 }
 
 void wg_packet_handshake_receive_worker(struct work_struct *work)
@@ -224,7 +223,7 @@ void wg_packet_handshake_receive_worker(struct work_struct *work)
 	struct sk_buff *skb;
 
 	while ((skb = skb_dequeue(&wg->incoming_handshakes)) != NULL) {
-		wg_receive_handshake_packet(wg, skb);
+		(void)wg_receive_handshake_packet(wg, skb);
 		dev_kfree_skb(skb);
 		cond_resched();
 	}
@@ -289,10 +288,10 @@ static bool decrypt_packet(struct sk_buff *skb, struct noise_keypair *keypair,
 	if (skb_to_sgvec(skb, sg, 0, skb->len) <= 0)
 		return false;
 
-	if (!chacha20poly1305_decrypt_sg_inplace(sg, skb->len, NULL, 0,
-						 PACKET_CB(skb)->nonce,
-						 keypair->receiving.key,
-						 simd_context))
+	if (! wc_AesGcm_decrypt_sg_inplace(sg, skb->len, NULL, 0,
+					   PACKET_CB(skb)->nonce,
+					   keypair->receiving.key,
+					   sizeof(keypair->receiving.key)))
 		return false;
 
 	/* Another ugly situation of pushing and pulling the header so as to
@@ -388,7 +387,7 @@ static void wg_packet_consume_data_done(struct wg_peer *peer,
 		goto dishonest_packet_type;
 
 	skb->dev = dev;
-	/* We've already verified the Poly1305 auth tag, which means this packet
+	/* We've already verified the auth tag, which means this packet
 	 * was not modified in transit. We can therefore tell the networking
 	 * stack that all checksums of every layer of encapsulation have already
 	 * been checked "by the hardware" and therefore is unnecessary to check

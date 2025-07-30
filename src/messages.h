@@ -6,22 +6,24 @@
 #ifndef _WG_MESSAGES_H
 #define _WG_MESSAGES_H
 
-#ifndef WOLFCRYPTO_SHIM_H
-#include <zinc/curve25519.h>
-#include <zinc/chacha20poly1305.h>
-#include <zinc/blake2s.h>
-#endif
+#include <wolfssl/wolfcrypt/sha256.h>
+#include <wolfssl/wolfcrypt/aes.h>
+#include <wolfssl/wolfcrypt/hmac.h>
+#include <wolfssl/wolfcrypt/ecc.h>
 
 #include <linux/kernel.h>
 #include <linux/param.h>
 #include <linux/skbuff.h>
 
+#define NOISE_CURVE_ID ECC_SECP256R1
+
 enum noise_lengths {
-	NOISE_PUBLIC_KEY_LEN = CURVE25519_KEY_SIZE,
-	NOISE_SYMMETRIC_KEY_LEN = CHACHA20POLY1305_KEY_SIZE,
+	NOISE_PUBLIC_KEY_LEN = 65 /* Size of uncompressed SECP256R1 public key */,
+	NOISE_PRIVATE_KEY_LEN = 32 /* Size of SECP256R1 private key */,
+	NOISE_SYMMETRIC_KEY_LEN = AES_256_KEY_SIZE,
 	NOISE_TIMESTAMP_LEN = sizeof(u64) + sizeof(u32),
-	NOISE_AUTHTAG_LEN = CHACHA20POLY1305_AUTHTAG_SIZE,
-	NOISE_HASH_LEN = BLAKE2S_HASH_SIZE
+	NOISE_AUTHTAG_LEN = WC_AES_BLOCK_SIZE,
+	NOISE_HASH_LEN = WC_SHA256_DIGEST_SIZE
 };
 
 #define noise_encrypted_len(plain_len) ((plain_len) + NOISE_AUTHTAG_LEN)
@@ -29,7 +31,7 @@ enum noise_lengths {
 enum cookie_values {
 	COOKIE_SECRET_MAX_AGE = 2 * 60,
 	COOKIE_SECRET_LATENCY = 5,
-	COOKIE_NONCE_LEN = XCHACHA20POLY1305_NONCE_SIZE,
+	COOKIE_NONCE_LEN = AES_IV_SIZE,
 	COOKIE_LEN = 16
 };
 

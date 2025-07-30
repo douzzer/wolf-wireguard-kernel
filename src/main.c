@@ -21,13 +21,6 @@ static int __init mod_init(void)
 {
 	int ret;
 
-#ifndef WOLFCRYPTO_SHIM_H
-	if ((ret = chacha20_mod_init()) || (ret = poly1305_mod_init()) ||
-	    (ret = chacha20poly1305_mod_init()) || (ret = blake2s_mod_init()) ||
-	    (ret = curve25519_mod_init()))
-		return ret;
-#endif
-
 #ifdef DEBUG
 	if (!wg_allowedips_selftest() || !wg_packet_counter_selftest() ||
 	    !wg_ratelimiter_selftest())
@@ -58,13 +51,14 @@ static void __exit mod_exit(void)
 {
 	wg_genetlink_uninit();
 	wg_device_uninit();
+        wg_noise_uninit();
 }
 
 module_init(mod_init);
 module_exit(mod_exit);
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("WireGuard secure network tunnel");
-MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com>");
+MODULE_DESCRIPTION("FIPS-WireGuard secure network tunnel");
+MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com> and Daniel Pouzzner <douzzer@wolfssl.com>");
 MODULE_VERSION(WIREGUARD_VERSION);
 MODULE_ALIAS_RTNL_LINK(KBUILD_MODNAME);
 MODULE_ALIAS_GENL_FAMILY(WG_GENL_NAME);
@@ -77,3 +71,31 @@ MODULE_IMPORT_NS("WOLFSSL");
 MODULE_IMPORT_NS(WOLFSSL);
 #endif
 #endif
+
+#include <linux/kprobes.h>
+void *my_kallsyms_lookup_name(const char *name);
+void *my_kallsyms_lookup_name(const char *name) {
+    static typeof(kallsyms_lookup_name) *kallsyms_lookup_name_ptr = NULL;
+    static struct kprobe kallsyms_lookup_name_kp = {
+        .symbol_name = "kallsyms_lookup_name"
+    };
+    unsigned long a;
+
+    if (! kallsyms_lookup_name_ptr) {
+        int ret;
+        kallsyms_lookup_name_kp.addr = NULL;
+        if ((ret = register_kprobe(&kallsyms_lookup_name_kp)) != 0) {
+            pr_err_once("ERROR: register_kprobe(&kallsyms_lookup_name_kp) failed: %d", ret);
+            return 0;
+        }
+        kallsyms_lookup_name_ptr = (typeof(kallsyms_lookup_name_ptr))kallsyms_lookup_name_kp.addr;
+        unregister_kprobe(&kallsyms_lookup_name_kp);
+        if (! kallsyms_lookup_name_ptr) {
+            pr_err_once("ERROR: kallsyms_lookup_name_kp.addr is null.");
+            return 0;
+        }
+    }
+
+    a = kallsyms_lookup_name_ptr(name);
+    return (void *)a;
+}

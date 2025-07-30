@@ -108,18 +108,25 @@ void wg_packet_send_handshake_response(struct wg_peer *peer)
 	}
 }
 
-void wg_packet_send_handshake_cookie(struct wg_device *wg,
+int wg_packet_send_handshake_cookie(struct wg_device *wg,
 				     struct sk_buff *initiating_skb,
 				     __le32 sender_index)
 {
 	struct message_handshake_cookie packet;
+        int ret;
 
 	net_dbg_skb_ratelimited("%s: Sending cookie response for denied handshake message for %pISpfsc\n",
 				wg->dev->name, initiating_skb);
-	wg_cookie_message_create(&packet, initiating_skb, sender_index,
+
+	ret = wg_cookie_message_create(&packet, initiating_skb, sender_index,
 				 &wg->cookie_checker);
+        if (ret != 0)
+		return ret;
+
 	wg_socket_send_buffer_as_reply_to_skb(wg, initiating_skb, &packet,
 					      sizeof(packet));
+
+	return 0;
 }
 
 static void keep_key_fresh(struct wg_peer *peer)
@@ -215,10 +222,9 @@ static bool encrypt_packet(struct sk_buff *skb, struct noise_keypair *keypair,
 	if (skb_to_sgvec(skb, sg, sizeof(struct message_data),
 			 noise_encrypted_len(plaintext_len)) <= 0)
 		return false;
-	return chacha20poly1305_encrypt_sg_inplace(sg, plaintext_len, NULL, 0,
-						   PACKET_CB(skb)->nonce,
-						   keypair->sending.key,
-						   simd_context);
+	return wc_AesGcm_encrypt_sg_inplace(sg, plaintext_len, NULL, 0,
+                                            PACKET_CB(skb)->nonce,
+                                            keypair->sending.key, sizeof(keypair->sending.key));
 }
 
 void wg_packet_send_keepalive(struct wg_peer *peer)

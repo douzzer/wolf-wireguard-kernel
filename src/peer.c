@@ -49,7 +49,11 @@ struct wg_peer *wg_peer_create(struct wg_device *wg,
 	peer->serial_work_cpu = nr_cpumask_bits;
 	wg_cookie_init(&peer->latest_cookie);
 	wg_timers_init(peer);
-	wg_cookie_checker_precompute_peer_keys(peer);
+
+	ret = wg_cookie_checker_precompute_peer_keys(peer);
+        if (ret)
+		goto err_3;
+
 	spin_lock_init(&peer->keypairs.keypair_update_lock);
 	INIT_WORK(&peer->transmit_handshake_work,
 		  wg_packet_handshake_send_worker);

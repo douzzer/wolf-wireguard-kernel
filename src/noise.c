@@ -25,34 +25,69 @@
  * <- e, ee, se, psk, {}
  */
 
-static const u8 handshake_name[37] = "Noise_IKpsk2_25519_ChaChaPoly_BLAKE2s";
-static const u8 identifier_name[34] = "WireGuard v1 zx2c4 Jason@zx2c4.com";
+static const u8 handshake_name[37] = "Noise_IKpsk2_SECP256R1_AesGcm_SHA256";
+static const u8 identifier_name[34] = "FIPS-WireGuard v1 info@wolfssl.com";
 static u8 handshake_init_hash[NOISE_HASH_LEN] __ro_after_init;
 static u8 handshake_init_chaining_key[NOISE_HASH_LEN] __ro_after_init;
 static atomic64_t keypair_counter = ATOMIC64_INIT(0);
 
 void __init wg_noise_init(void)
 {
-	struct blake2s_state blake;
+	wc_Sha256 sha;
+	int ret;
 
-	blake2s(handshake_init_chaining_key, handshake_name, NULL,
-		NOISE_HASH_LEN, sizeof(handshake_name), 0);
-	blake2s_init(&blake, NOISE_HASH_LEN);
-	blake2s_update(&blake, handshake_init_chaining_key, NOISE_HASH_LEN);
-	blake2s_update(&blake, identifier_name, sizeof(identifier_name));
-	blake2s_final(&blake, handshake_init_hash);
+	ret = wc_InitSha256(&sha);
+	if (ret != 0) {
+		pr_err("ERROR: wg_noise_init() wc_InitSha256() failed with code %d.\n", ret);
+		return;
+	}
+
+	ret = wc_Sha256Update(&sha, handshake_name, (word32)sizeof(handshake_name));
+	if (ret == 0)
+		ret = wc_Sha256Final(&sha, handshake_init_chaining_key);
+	if (ret != 0) {
+		pr_err("ERROR: wg_noise_init() wc_sha256_oneshot() failed with code %d.\n", ret);
+		return;
+	}
+	if (ret == 0)
+		ret = wc_Sha256Update(&sha, handshake_init_chaining_key, NOISE_HASH_LEN);
+	if (ret == 0)
+		ret = wc_Sha256Update(&sha, identifier_name, sizeof(identifier_name));
+	if (ret == 0)
+		ret = wc_Sha256Final(&sha, handshake_init_hash);
+
+	wc_Sha256Free(&sha);
+
+	if (ret == 0)
+		ret = wc_linuxkm_drbg_init_ctx(&wc_wg_drbg);
+
+	if (ret != 0)
+		pr_err("ERROR: wg_noise_init() failed with code %d.\n", ret);
 }
+
+void __exit wg_noise_uninit(void)
+{
+	wc_linuxkm_drbg_ctx_clear(&wc_wg_drbg);
+}
+
 
 /* Must hold peer->handshake.static_identity->lock */
 void wg_noise_precompute_static_static(struct wg_peer *peer)
 {
 	down_write(&peer->handshake.lock);
+
 	if (!peer->handshake.static_identity->has_identity ||
-	    !curve25519(peer->handshake.precomputed_static_static,
-			peer->handshake.static_identity->static_private,
-			peer->handshake.remote_static))
+	    (wc_ecc_shared_secret_exim(peer->handshake.precomputed_static_static,
+				       sizeof(peer->handshake.precomputed_static_static),
+				       peer->handshake.static_identity->static_private,
+				       sizeof(peer->handshake.static_identity->static_private),
+				       peer->handshake.remote_static,
+				       sizeof(peer->handshake.remote_static)) != 0))
+	{
 		memset(peer->handshake.precomputed_static_static, 0,
 		       NOISE_PUBLIC_KEY_LEN);
+	}
+
 	up_write(&peer->handshake.lock);
 }
 
@@ -66,7 +101,9 @@ void wg_noise_handshake_init(struct noise_handshake *handshake,
 	init_rwsem(&handshake->lock);
 	handshake->entry.type = INDEX_HASHTABLE_HANDSHAKE;
 	handshake->entry.peer = peer;
+
 	memcpy(handshake->remote_static, peer_public_key, NOISE_PUBLIC_KEY_LEN);
+
 	if (peer_preshared_key)
 		memcpy(handshake->preshared_key, peer_preshared_key,
 		       NOISE_SYMMETRIC_KEY_LEN);
@@ -296,171 +333,234 @@ void wg_noise_set_static_identity_private_key(
 	const u8 private_key[NOISE_PUBLIC_KEY_LEN])
 {
 	memcpy(static_identity->static_private, private_key,
-	       NOISE_PUBLIC_KEY_LEN);
-	curve25519_clamp_secret(static_identity->static_private);
-	static_identity->has_identity = curve25519_generate_public(
-		static_identity->static_public, private_key);
+	       NOISE_PRIVATE_KEY_LEN);
+
+	static_identity->has_identity = wc_ecc_private_to_public_exim(
+		static_identity->static_private, sizeof(static_identity->static_private),
+		static_identity->static_public, sizeof(static_identity->static_public),
+		NOISE_CURVE_ID) == 0;
 }
 
 /* This is Hugo Krawczyk's HKDF:
  *  - https://eprint.iacr.org/2010/264.pdf
  *  - https://tools.ietf.org/html/rfc5869
  */
-static void kdf(u8 *first_dst, u8 *second_dst, u8 *third_dst, const u8 *data,
+static int kdf(u8 *first_dst, u8 *second_dst, u8 *third_dst, const u8 *data,
 		size_t first_len, size_t second_len, size_t third_len,
 		size_t data_len, const u8 chaining_key[NOISE_HASH_LEN])
 {
-	u8 output[BLAKE2S_HASH_SIZE + 1];
-	u8 secret[BLAKE2S_HASH_SIZE];
+	u8 output[WC_SHA256_DIGEST_SIZE + 1];
+	u8 secret[WC_SHA256_DIGEST_SIZE];
+	struct Hmac *wc_hmac;
+	int ret;
 
 	WARN_ON(IS_ENABLED(DEBUG) &&
-		(first_len > BLAKE2S_HASH_SIZE ||
-		 second_len > BLAKE2S_HASH_SIZE ||
-		 third_len > BLAKE2S_HASH_SIZE ||
+		(first_len > WC_SHA256_DIGEST_SIZE ||
+		 second_len > WC_SHA256_DIGEST_SIZE ||
+		 third_len > WC_SHA256_DIGEST_SIZE ||
 		 ((second_len || second_dst || third_len || third_dst) &&
 		  (!first_len || !first_dst)) ||
 		 ((third_len || third_dst) && (!second_len || !second_dst))));
 
-	/* Extract entropy from data into secret */
-	blake2s_hmac(secret, data, chaining_key, BLAKE2S_HASH_SIZE, data_len,
-		     NOISE_HASH_LEN);
-
-	if (!first_dst || !first_len)
+	wc_hmac = (struct Hmac *)malloc(sizeof(*wc_hmac));
+	if (! wc_hmac) {
+		ret = -ENOMEM;
 		goto out;
+	}
+
+	/* Extract entropy from data into secret */
+	ret = wc_hmac_oneshot_prealloc(wc_hmac, WC_SHA256, secret, sizeof(secret), data,
+			      data_len, chaining_key, NOISE_HASH_LEN);
+	if (ret != 0)
+		goto out;
+
+	if (!first_dst || !first_len) {
+		ret = -EINVAL;
+		goto out;
+	}
 
 	/* Expand first key: key = secret, data = 0x1 */
 	output[0] = 1;
-	blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE, 1,
-		     BLAKE2S_HASH_SIZE);
+
+	ret = wc_hmac_oneshot_prealloc(wc_hmac, WC_SHA256, output, sizeof(output), output,
+			      1, secret, sizeof(secret));
+	if (ret != 0)
+		goto out;
+
 	memcpy(first_dst, output, first_len);
 
-	if (!second_dst || !second_len)
+	if (!second_dst || !second_len) {
+		ret = -EINVAL;
 		goto out;
+	}
 
 	/* Expand second key: key = secret, data = first-key || 0x2 */
-	output[BLAKE2S_HASH_SIZE] = 2;
-	blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE,
-		     BLAKE2S_HASH_SIZE + 1, BLAKE2S_HASH_SIZE);
-	memcpy(second_dst, output, second_len);
+	output[WC_SHA256_DIGEST_SIZE] = 2;
 
-	if (!third_dst || !third_len)
+	ret = wc_hmac_oneshot_prealloc(wc_hmac, WC_SHA256, output, sizeof(output), output,
+			      WC_SHA256_DIGEST_SIZE + 1, secret, WC_SHA256_DIGEST_SIZE);
+	if (ret != 0)
 		goto out;
 
+	memcpy(second_dst, output, second_len);
+
+	if (!third_dst || !third_len) {
+		ret = -EINVAL;
+		goto out;
+	}
+
 	/* Expand third key: key = secret, data = second-key || 0x3 */
-	output[BLAKE2S_HASH_SIZE] = 3;
-	blake2s_hmac(output, output, secret, BLAKE2S_HASH_SIZE,
-		     BLAKE2S_HASH_SIZE + 1, BLAKE2S_HASH_SIZE);
+	output[WC_SHA256_DIGEST_SIZE] = 3;
+
+	ret = wc_hmac_oneshot_prealloc(wc_hmac, WC_SHA256, output, sizeof(output), output,
+				       WC_SHA256_DIGEST_SIZE + 1, secret, WC_SHA256_DIGEST_SIZE);
+
 	memcpy(third_dst, output, third_len);
 
 out:
 	/* Clear sensitive data from stack */
-	memzero_explicit(secret, BLAKE2S_HASH_SIZE);
-	memzero_explicit(output, BLAKE2S_HASH_SIZE + 1);
+	memzero_explicit(secret, WC_SHA256_DIGEST_SIZE);
+	memzero_explicit(output, WC_SHA256_DIGEST_SIZE + 1);
+
+	if (wc_hmac)
+		free(wc_hmac);
+
+	return ret;
 }
 
-static void derive_keys(struct noise_symmetric_key *first_dst,
+static int derive_keys(struct noise_symmetric_key *first_dst,
 			struct noise_symmetric_key *second_dst,
 			const u8 chaining_key[NOISE_HASH_LEN])
 {
 	u64 birthdate = ktime_get_coarse_boottime_ns();
-	kdf(first_dst->key, second_dst->key, NULL, NULL,
+	int ret = kdf(first_dst->key, second_dst->key, NULL, NULL,
 	    NOISE_SYMMETRIC_KEY_LEN, NOISE_SYMMETRIC_KEY_LEN, 0, 0,
 	    chaining_key);
+	if (ret)
+		return ret;
 	first_dst->birthdate = second_dst->birthdate = birthdate;
 	first_dst->is_valid = second_dst->is_valid = true;
+	return 0;
 }
 
 static bool __must_check mix_dh(u8 chaining_key[NOISE_HASH_LEN],
 				u8 key[NOISE_SYMMETRIC_KEY_LEN],
-				const u8 private[NOISE_PUBLIC_KEY_LEN],
+				const u8 private[NOISE_PRIVATE_KEY_LEN],
 				const u8 public[NOISE_PUBLIC_KEY_LEN])
 {
 	u8 dh_calculation[NOISE_PUBLIC_KEY_LEN];
 
-	if (unlikely(!curve25519(dh_calculation, private, public)))
+	if (wc_ecc_shared_secret_exim(dh_calculation, sizeof(dh_calculation),
+				      private, NOISE_PRIVATE_KEY_LEN,
+				      public, NOISE_PUBLIC_KEY_LEN) != 0)
 		return false;
-	kdf(chaining_key, key, NULL, dh_calculation, NOISE_HASH_LEN,
-	    NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN, chaining_key);
+	if (kdf(chaining_key, key, NULL, dh_calculation, NOISE_HASH_LEN,
+		NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN, chaining_key) != 0)
+		return false;
 	memzero_explicit(dh_calculation, NOISE_PUBLIC_KEY_LEN);
 	return true;
 }
 
 static bool __must_check mix_precomputed_dh(u8 chaining_key[NOISE_HASH_LEN],
 					    u8 key[NOISE_SYMMETRIC_KEY_LEN],
-					    const u8 precomputed[NOISE_PUBLIC_KEY_LEN])
+					    const u8 precomputed[NOISE_PRIVATE_KEY_LEN])
 {
-	static u8 zero_point[NOISE_PUBLIC_KEY_LEN];
-	if (unlikely(!crypto_memneq(precomputed, zero_point, NOISE_PUBLIC_KEY_LEN)))
+	static u8 zero_point[NOISE_PRIVATE_KEY_LEN];
+	if (unlikely(!crypto_memneq(precomputed, zero_point, NOISE_PRIVATE_KEY_LEN)))
 		return false;
-	kdf(chaining_key, key, NULL, precomputed, NOISE_HASH_LEN,
-	    NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN,
-	    chaining_key);
+	if (kdf(chaining_key, key, NULL, precomputed, NOISE_HASH_LEN,
+		NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN,
+		chaining_key) != 0)
+	{
+		return false;
+	}
 	return true;
 }
 
-static void mix_hash(u8 hash[NOISE_HASH_LEN], const u8 *src, size_t src_len)
+static int mix_hash(u8 hash[NOISE_HASH_LEN], const u8 *src, size_t src_len)
 {
-	struct blake2s_state blake;
+	wc_Sha256 sha;
+	int ret;
 
-	blake2s_init(&blake, NOISE_HASH_LEN);
-	blake2s_update(&blake, hash, NOISE_HASH_LEN);
-	blake2s_update(&blake, src, src_len);
-	blake2s_final(&blake, hash);
+	ret = wc_InitSha256(&sha);
+
+	if (ret == 0)
+		ret = wc_Sha256Update(&sha, hash, NOISE_HASH_LEN);
+
+	if (ret == 0)
+		ret = wc_Sha256Update(&sha, src, src_len);
+
+	if (ret == 0)
+		ret = wc_Sha256Final(&sha, hash);
+
+	return ret;
 }
 
-static void mix_psk(u8 chaining_key[NOISE_HASH_LEN], u8 hash[NOISE_HASH_LEN],
+static int mix_psk(u8 chaining_key[NOISE_HASH_LEN], u8 hash[NOISE_HASH_LEN],
 		    u8 key[NOISE_SYMMETRIC_KEY_LEN],
 		    const u8 psk[NOISE_SYMMETRIC_KEY_LEN])
 {
 	u8 temp_hash[NOISE_HASH_LEN];
+	int ret;
 
-	kdf(chaining_key, temp_hash, key, psk, NOISE_HASH_LEN, NOISE_HASH_LEN,
-	    NOISE_SYMMETRIC_KEY_LEN, NOISE_SYMMETRIC_KEY_LEN, chaining_key);
-	mix_hash(hash, temp_hash, NOISE_HASH_LEN);
+	ret = kdf(chaining_key, temp_hash, key, psk, NOISE_HASH_LEN, NOISE_HASH_LEN,
+		  NOISE_SYMMETRIC_KEY_LEN, NOISE_SYMMETRIC_KEY_LEN, chaining_key);
+	if (ret == 0)
+		ret = mix_hash(hash, temp_hash, NOISE_HASH_LEN);
 	memzero_explicit(temp_hash, NOISE_HASH_LEN);
+	return ret;
 }
 
-static void handshake_init(u8 chaining_key[NOISE_HASH_LEN],
+static int handshake_init(u8 chaining_key[NOISE_HASH_LEN],
 			   u8 hash[NOISE_HASH_LEN],
 			   const u8 remote_static[NOISE_PUBLIC_KEY_LEN])
 {
 	memcpy(hash, handshake_init_hash, NOISE_HASH_LEN);
 	memcpy(chaining_key, handshake_init_chaining_key, NOISE_HASH_LEN);
-	mix_hash(hash, remote_static, NOISE_PUBLIC_KEY_LEN);
+	return mix_hash(hash, remote_static, NOISE_PUBLIC_KEY_LEN);
 }
 
-static void message_encrypt(u8 *dst_ciphertext, const u8 *src_plaintext,
+static int message_encrypt(u8 *dst_ciphertext, size_t dst_ciphertext_space, const u8 *src_plaintext,
 			    size_t src_len, u8 key[NOISE_SYMMETRIC_KEY_LEN],
 			    u8 hash[NOISE_HASH_LEN])
 {
-	chacha20poly1305_encrypt(dst_ciphertext, src_plaintext, src_len, hash,
-				 NOISE_HASH_LEN,
-				 0 /* Always zero for Noise_IK */, key);
-	mix_hash(hash, dst_ciphertext, noise_encrypted_len(src_len));
+	int ret = wc_AesGcm_oneshot_encrypt(dst_ciphertext, dst_ciphertext_space, key, NOISE_SYMMETRIC_KEY_LEN, src_plaintext, src_len,
+					    NULL /* iv */, 0,
+					    hash, NOISE_HASH_LEN, NOISE_AUTHTAG_LEN);
+	if (ret == 0)
+		mix_hash(hash, dst_ciphertext, noise_encrypted_len(src_len));
+	return ret;
 }
 
-static bool message_decrypt(u8 *dst_plaintext, const u8 *src_ciphertext,
+static bool message_decrypt(u8 *dst_plaintext, size_t dst_plaintext_space, const u8 *src_ciphertext,
 			    size_t src_len, u8 key[NOISE_SYMMETRIC_KEY_LEN],
 			    u8 hash[NOISE_HASH_LEN])
 {
-	if (!chacha20poly1305_decrypt(dst_plaintext, src_ciphertext, src_len,
-				      hash, NOISE_HASH_LEN,
-				      0 /* Always zero for Noise_IK */, key))
+	int ret = wc_AesGcm_oneshot_decrypt(dst_plaintext, dst_plaintext_space, key, NOISE_SYMMETRIC_KEY_LEN, src_ciphertext, src_len,
+					    NULL /* iv */, 0,
+					    hash, NOISE_HASH_LEN, NOISE_AUTHTAG_LEN);
+	if (ret != 0)
 		return false;
-	mix_hash(hash, src_ciphertext, src_len);
+	ret = mix_hash(hash, src_ciphertext, src_len);
+	if (ret != 0)
+		return false;
 	return true;
 }
 
-static void message_ephemeral(u8 ephemeral_dst[NOISE_PUBLIC_KEY_LEN],
+static int message_ephemeral(u8 ephemeral_dst[NOISE_PUBLIC_KEY_LEN],
 			      const u8 ephemeral_src[NOISE_PUBLIC_KEY_LEN],
 			      u8 chaining_key[NOISE_HASH_LEN],
 			      u8 hash[NOISE_HASH_LEN])
 {
+	int ret;
 	if (ephemeral_dst != ephemeral_src)
 		memcpy(ephemeral_dst, ephemeral_src, NOISE_PUBLIC_KEY_LEN);
-	mix_hash(hash, ephemeral_src, NOISE_PUBLIC_KEY_LEN);
-	kdf(chaining_key, NULL, NULL, ephemeral_src, NOISE_HASH_LEN, 0, 0,
+	ret = mix_hash(hash, ephemeral_src, NOISE_PUBLIC_KEY_LEN);
+	if (ret)
+		return ret;
+	ret = kdf(chaining_key, NULL, NULL, ephemeral_src, NOISE_HASH_LEN, 0, 0,
 	    NOISE_PUBLIC_KEY_LEN, chaining_key);
+	return ret;
 }
 
 static void tai64n_now(u8 output[NOISE_TIMESTAMP_LEN])
@@ -490,11 +590,6 @@ wg_noise_handshake_create_initiation(struct message_handshake_initiation *dst,
 	u8 key[NOISE_SYMMETRIC_KEY_LEN];
 	bool ret = false;
 
-	/* We need to wait for crng _before_ taking any locks, since
-	 * curve25519_generate_secret uses get_random_bytes_wait.
-	 */
-	wait_for_random_bytes();
-
 	down_read(&handshake->static_identity->lock);
 	down_write(&handshake->lock);
 
@@ -507,10 +602,11 @@ wg_noise_handshake_create_initiation(struct message_handshake_initiation *dst,
 		       handshake->remote_static);
 
 	/* e */
-	curve25519_generate_secret(handshake->ephemeral_private);
-	if (!curve25519_generate_public(dst->unencrypted_ephemeral,
-					handshake->ephemeral_private))
-		goto out;
+	if (wc_ecc_make_keypair_exim(handshake->ephemeral_private, sizeof(handshake->ephemeral_private),
+				     dst->unencrypted_ephemeral, sizeof(dst->unencrypted_ephemeral),
+				     NOISE_CURVE_ID) != 0)
+	    goto out;
+
 	message_ephemeral(dst->unencrypted_ephemeral,
 			  dst->unencrypted_ephemeral, handshake->chaining_key,
 			  handshake->hash);
@@ -521,7 +617,7 @@ wg_noise_handshake_create_initiation(struct message_handshake_initiation *dst,
 		goto out;
 
 	/* s */
-	message_encrypt(dst->encrypted_static,
+	message_encrypt(dst->encrypted_static, sizeof(dst->encrypted_static),
 			handshake->static_identity->static_public,
 			NOISE_PUBLIC_KEY_LEN, key, handshake->hash);
 
@@ -532,7 +628,7 @@ wg_noise_handshake_create_initiation(struct message_handshake_initiation *dst,
 
 	/* {t} */
 	tai64n_now(timestamp);
-	message_encrypt(dst->encrypted_timestamp, timestamp,
+	message_encrypt(dst->encrypted_timestamp, sizeof(dst->encrypted_timestamp), timestamp,
 			NOISE_TIMESTAMP_LEN, key, handshake->hash);
 
 	dst->sender_index = wg_index_hashtable_insert(
@@ -543,6 +639,7 @@ wg_noise_handshake_create_initiation(struct message_handshake_initiation *dst,
 	ret = true;
 
 out:
+
 	up_write(&handshake->lock);
 	up_read(&handshake->static_identity->lock);
 	memzero_explicit(key, NOISE_SYMMETRIC_KEY_LEN);
@@ -578,7 +675,7 @@ wg_noise_handshake_consume_initiation(struct message_handshake_initiation *src,
 		goto out;
 
 	/* s */
-	if (!message_decrypt(s, src->encrypted_static,
+	if (!message_decrypt(s, sizeof(s), src->encrypted_static,
 			     sizeof(src->encrypted_static), key, hash))
 		goto out;
 
@@ -594,7 +691,7 @@ wg_noise_handshake_consume_initiation(struct message_handshake_initiation *src,
 	    goto out;
 
 	/* {t} */
-	if (!message_decrypt(t, src->encrypted_timestamp,
+	if (!message_decrypt(t, sizeof(t), src->encrypted_timestamp,
 			     sizeof(src->encrypted_timestamp), key, hash))
 		goto out;
 
@@ -639,11 +736,6 @@ bool wg_noise_handshake_create_response(struct message_handshake_response *dst,
 	u8 key[NOISE_SYMMETRIC_KEY_LEN];
 	bool ret = false;
 
-	/* We need to wait for crng _before_ taking any locks, since
-	 * curve25519_generate_secret uses get_random_bytes_wait.
-	 */
-	wait_for_random_bytes();
-
 	down_read(&handshake->static_identity->lock);
 	down_write(&handshake->lock);
 
@@ -654,10 +746,11 @@ bool wg_noise_handshake_create_response(struct message_handshake_response *dst,
 	dst->receiver_index = handshake->remote_index;
 
 	/* e */
-	curve25519_generate_secret(handshake->ephemeral_private);
-	if (!curve25519_generate_public(dst->unencrypted_ephemeral,
-					handshake->ephemeral_private))
+	if (wc_ecc_make_keypair_exim(handshake->ephemeral_private, sizeof(handshake->ephemeral_private),
+				     dst->unencrypted_ephemeral, sizeof(dst->unencrypted_ephemeral),
+				     NOISE_CURVE_ID) != 0)
 		goto out;
+
 	message_ephemeral(dst->unencrypted_ephemeral,
 			  dst->unencrypted_ephemeral, handshake->chaining_key,
 			  handshake->hash);
@@ -677,7 +770,7 @@ bool wg_noise_handshake_create_response(struct message_handshake_response *dst,
 		handshake->preshared_key);
 
 	/* {} */
-	message_encrypt(dst->encrypted_nothing, NULL, 0, key, handshake->hash);
+	message_encrypt(dst->encrypted_nothing, sizeof(dst->encrypted_nothing), NULL, 0, key, handshake->hash);
 
 	dst->sender_index = wg_index_hashtable_insert(
 		handshake->entry.peer->device->index_hashtable,
@@ -747,7 +840,7 @@ wg_noise_handshake_consume_response(struct message_handshake_response *src,
 	mix_psk(chaining_key, hash, key, preshared_key);
 
 	/* {} */
-	if (!message_decrypt(NULL, src->encrypted_nothing,
+	if (!message_decrypt(NULL, 0, src->encrypted_nothing,
 			     sizeof(src->encrypted_nothing), key, hash))
 		goto fail;
 

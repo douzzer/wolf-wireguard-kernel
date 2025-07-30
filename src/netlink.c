@@ -546,19 +546,22 @@ static int wg_set_device(struct sk_buff *skb, struct genl_info *info)
 
 	if (info->attrs[WGDEVICE_A_PRIVATE_KEY] &&
 	    nla_len(info->attrs[WGDEVICE_A_PRIVATE_KEY]) ==
-		    NOISE_PUBLIC_KEY_LEN) {
+		    NOISE_PRIVATE_KEY_LEN) {
 		u8 *private_key = nla_data(info->attrs[WGDEVICE_A_PRIVATE_KEY]);
 		u8 public_key[NOISE_PUBLIC_KEY_LEN];
 		struct wg_peer *peer, *temp;
 
 		if (!crypto_memneq(wg->static_identity.static_private,
-				   private_key, NOISE_PUBLIC_KEY_LEN))
+				   private_key, NOISE_PRIVATE_KEY_LEN))
 			goto skip_set_private_key;
 
 		/* We remove before setting, to prevent race, which means doing
-		 * two 25519-genpub ops.
+		 * two genpub ops.
 		 */
-		if (curve25519_generate_public(public_key, private_key)) {
+                if (wc_ecc_private_to_public_exim(private_key, NOISE_PRIVATE_KEY_LEN,
+                                                  public_key, sizeof(public_key),
+                                                  NOISE_CURVE_ID) == 0)
+                {
 			peer = wg_pubkey_hashtable_lookup(wg->peer_hashtable,
 							  public_key);
 			if (peer) {
@@ -575,7 +578,9 @@ static int wg_set_device(struct sk_buff *skb, struct genl_info *info)
 			wg_noise_precompute_static_static(peer);
 			wg_noise_expire_current_peer_keypairs(peer);
 		}
-		wg_cookie_checker_precompute_device_keys(&wg->cookie_checker);
+		ret = wg_cookie_checker_precompute_device_keys(&wg->cookie_checker);
+                if (ret)
+                	goto out;
 		up_write(&wg->static_identity.lock);
 	}
 skip_set_private_key:
