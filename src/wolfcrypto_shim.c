@@ -1,3 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
+/*
+ * Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
+ */
+
 #include "wolfcrypto_shim.h"
 #include <crypto/scatterwalk.h>
 

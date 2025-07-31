@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ *
+ * Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
  */
 
 #include "version.h"
@@ -9,8 +11,7 @@
 #include "queueing.h"
 #include "ratelimiter.h"
 #include "netlink.h"
-#include "uapi/wireguard.h"
-#include "crypto/zinc.h"
+#include "uapi/wolfguard.h"
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -36,8 +37,9 @@ static int __init mod_init(void)
 	if (ret < 0)
 		goto err_netlink;
 
-	pr_info("WireGuard " WIREGUARD_VERSION " loaded. See www.wireguard.com for information.\n");
+	pr_info("WolfGuard " WOLFGUARD_VERSION " loaded. See www.wolfssl.com for information.\n");
 	pr_info("Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.\n");
+	pr_info("Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>\n");
 
 	return 0;
 
@@ -57,12 +59,12 @@ static void __exit mod_exit(void)
 module_init(mod_init);
 module_exit(mod_exit);
 MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("FIPS-WireGuard secure network tunnel");
+MODULE_DESCRIPTION("WolfGuard secure network tunnel");
 MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com> and Daniel Pouzzner <douzzer@wolfssl.com>");
-MODULE_VERSION(WIREGUARD_VERSION);
+MODULE_VERSION(WOLFGUARD_VERSION);
 MODULE_ALIAS_RTNL_LINK(KBUILD_MODNAME);
 MODULE_ALIAS_GENL_FAMILY(WG_GENL_NAME);
-MODULE_INFO(intree, "Y");
+MODULE_INFO(intree, "N");
 
 #if defined(WOLFCRYPTO_SHIM_H) && defined(MODULE_IMPORT_NS)
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0))

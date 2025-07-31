@@ -16,9 +16,9 @@ MAYBE_DEBUG :=
 endif
 
 insert: debug
-	-modinfo -F depends wireguard.ko | tr ',' '\n' | sudo xargs -n 1 modprobe
-	-sudo rmmod wireguard
-	-sudo insmod wireguard.ko
+	-modinfo -F depends wolfguard.ko | tr ',' '\n' | sudo xargs -n 1 modprobe
+	-sudo rmmod wolfguard
+	-sudo insmod wolfguard.ko
 
 test: insert
 	sudo PATH="$$PATH:/usr/sbin:/sbin:/usr/bin:/bin:/usr/local/sbin:/usr/local/bin" ./tests/netns.sh
@@ -28,15 +28,15 @@ test-qemu:
 
 remote-test:
 	ssh $(SSH_OPTS1) -Nf $(REMOTE_HOST1)
-	rsync --rsh="ssh $(SSH_OPTS1)" $(RSYNC_OPTS) . $(REMOTE_HOST1):wireguard-build/
-	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'make -C wireguard-build test -j$$(nproc)'
+	rsync --rsh="ssh $(SSH_OPTS1)" $(RSYNC_OPTS) . $(REMOTE_HOST1):wolfguard-build/
+	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'make -C wolfguard-build test -j$$(nproc)'
 	ssh $(SSH_OPTS1) -O exit $(REMOTE_HOST1)
 
 remote-run-1:
 	ssh $(SSH_OPTS1) -Nf $(REMOTE_HOST1)
-	rsync --rsh="ssh $(SSH_OPTS1)" $(RSYNC_OPTS) . $(REMOTE_HOST1):wireguard-build/
-	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'ip l d wg0; rmmod wireguard; cd wireguard-build && make -j$$(nproc) $(MAYBE_DEBUG) && make install'
-	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'ip l a wg0 type wireguard'
+	rsync --rsh="ssh $(SSH_OPTS1)" $(RSYNC_OPTS) . $(REMOTE_HOST1):wolfguard-build/
+	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'ip l d wg0; rmmod wolfguard; cd wolfguard-build && make -j$$(nproc) $(MAYBE_DEBUG) && make install'
+	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'ip l a wg0 type wolfguard'
 	printf '[Interface]\nListenPort=12912\nPrivateKey=4IoHwlfTyKb9Z9W1YPmBmZvSiU6qcs0oa4xnjAEm/3U=\n$(PEER2)$(PEER3)' | ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'cat > config.conf'
 	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'wg setconf wg0 config.conf'
 	ssh $(SSH_OPTS1) $(REMOTE_HOST1) 'ip l set up dev wg0'
@@ -47,9 +47,9 @@ remote-run-1:
 
 remote-run-2:
 	ssh $(SSH_OPTS2) -Nf $(REMOTE_HOST2)
-	rsync --rsh="ssh $(SSH_OPTS2)" $(RSYNC_OPTS) . $(REMOTE_HOST2):wireguard-build/
-	ssh $(SSH_OPTS2) $(REMOTE_HOST2) 'ip l d wg0; rmmod wireguard; cd wireguard-build && make -j$$(nproc) $(MAYBE_DEBUG) && make install'
-	ssh $(SSH_OPTS2) $(REMOTE_HOST2) 'ip l a wg0 type wireguard'
+	rsync --rsh="ssh $(SSH_OPTS2)" $(RSYNC_OPTS) . $(REMOTE_HOST2):wolfguard-build/
+	ssh $(SSH_OPTS2) $(REMOTE_HOST2) 'ip l d wg0; rmmod wolfguard; cd wolfguard-build && make -j$$(nproc) $(MAYBE_DEBUG) && make install'
+	ssh $(SSH_OPTS2) $(REMOTE_HOST2) 'ip l a wg0 type wolfguard'
 	printf '[Interface]\nListenPort=21281\nPrivateKey=kEKL+m4h5xTn2cYKU6NTEv32kuXHAkuqrjdT9VtsnX8=\n$(PEER1)$(PEER3)' | ssh $(SSH_OPTS2) $(REMOTE_HOST2) 'cat > config.conf'
 	ssh $(SSH_OPTS2) $(REMOTE_HOST2) 'wg setconf wg0 config.conf'
 	ssh $(SSH_OPTS2) $(REMOTE_HOST2) 'ip l set up dev wg0'
@@ -59,9 +59,9 @@ remote-run-2:
 
 remote-run-3:
 	ssh $(SSH_OPTS3) -Nf $(REMOTE_HOST3)
-	rsync --rsh="ssh $(SSH_OPTS3)" $(RSYNC_OPTS) . $(REMOTE_HOST3):wireguard-build/
-	ssh $(SSH_OPTS3) $(REMOTE_HOST3) 'ip l d wg0; rmmod wireguard; cd wireguard-build && make -j$$(nproc) $(MAYBE_DEBUG) && make install'
-	ssh $(SSH_OPTS3) $(REMOTE_HOST3) 'ip l a wg0 type wireguard'
+	rsync --rsh="ssh $(SSH_OPTS3)" $(RSYNC_OPTS) . $(REMOTE_HOST3):wolfguard-build/
+	ssh $(SSH_OPTS3) $(REMOTE_HOST3) 'ip l d wg0; rmmod wolfguard; cd wolfguard-build && make -j$$(nproc) $(MAYBE_DEBUG) && make install'
+	ssh $(SSH_OPTS3) $(REMOTE_HOST3) 'ip l a wg0 type wolfguard'
 	printf '[Interface]\nListenPort=54812\nPrivateKey=qFunvj5kgENrtWn754hNBLrk5mMA+8+evVtnI2YqWkk=\n$(PEER1)$(PEER2)' | ssh $(SSH_OPTS3) $(REMOTE_HOST3) 'cat > config.conf'
 	ssh $(SSH_OPTS3) $(REMOTE_HOST3) 'wg setconf wg0 config.conf'
 	ssh $(SSH_OPTS3) $(REMOTE_HOST3) 'ip l set up dev wg0'

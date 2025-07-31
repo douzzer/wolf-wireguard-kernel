@@ -39,12 +39,8 @@
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
-#error "WireGuard requires Linux >= 3.10"
+#error "WolfGuard requires Linux >= 3.10"
 #endif
-
-/* #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0) */
-/* #error "WireGuard has been merged into Linux >= 5.6 and therefore this compatibility module is no longer required." */
-/* #endif */
 
 #if defined(ISRHEL7)
 #include <linux/skbuff.h>

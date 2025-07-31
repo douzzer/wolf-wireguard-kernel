@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ *
+ * Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
  */
 
 #include "netlink.h"
@@ -9,11 +11,10 @@
 #include "socket.h"
 #include "queueing.h"
 #include "messages.h"
-#include "uapi/wireguard.h"
+#include "uapi/wolfguard.h"
 #include <linux/if.h>
 #include <net/genetlink.h>
 #include <net/sock.h>
-#include <crypto/algapi.h>
 
 static struct genl_family genl_family;
 
@@ -551,8 +552,8 @@ static int wg_set_device(struct sk_buff *skb, struct genl_info *info)
 		u8 public_key[NOISE_PUBLIC_KEY_LEN];
 		struct wg_peer *peer, *temp;
 
-		if (!crypto_memneq(wg->static_identity.static_private,
-				   private_key, NOISE_PRIVATE_KEY_LEN))
+                if (!ConstantCompare(wg->static_identity.static_private,
+                                     private_key, NOISE_PRIVATE_KEY_LEN))
 			goto skip_set_private_key;
 
 		/* We remove before setting, to prevent race, which means doing

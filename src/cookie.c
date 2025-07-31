@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ *
+ * Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
  */
 
 #include "cookie.h"
@@ -158,7 +160,7 @@ enum cookie_mac_state wg_cookie_validate_packet(struct cookie_checker *checker,
 	ret = INVALID_MAC;
 	compute_mac1(computed_mac, skb->data, skb->len,
 		     checker->message_mac1_key);
-	if (crypto_memneq(computed_mac, macs->mac1, COOKIE_LEN))
+	if (ConstantCompare(computed_mac, macs->mac1, COOKIE_LEN))
 		goto out;
 
 	ret = VALID_MAC_BUT_NO_COOKIE;
@@ -170,7 +172,7 @@ enum cookie_mac_state wg_cookie_validate_packet(struct cookie_checker *checker,
 		goto out;
 
 	compute_mac2(computed_mac, skb->data, skb->len, cookie);
-	if (crypto_memneq(computed_mac, macs->mac2, COOKIE_LEN))
+	if (ConstantCompare(computed_mac, macs->mac2, COOKIE_LEN))
 		goto out;
 
 	ret = VALID_MAC_WITH_COOKIE_BUT_RATELIMITED;

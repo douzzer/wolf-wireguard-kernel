@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ *
+ * Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
  */
 
 #include "noise.h"
@@ -26,7 +28,7 @@
  */
 
 static const u8 handshake_name[37] = "Noise_IKpsk2_SECP256R1_AesGcm_SHA256";
-static const u8 identifier_name[34] = "FIPS-WireGuard v1 info@wolfssl.com";
+static const u8 identifier_name[34] = "WolfGuard v1 info@wolfssl.com";
 static u8 handshake_init_hash[NOISE_HASH_LEN] __ro_after_init;
 static u8 handshake_init_chaining_key[NOISE_HASH_LEN] __ro_after_init;
 static atomic64_t keypair_counter = ATOMIC64_INIT(0);
@@ -466,7 +468,7 @@ static bool __must_check mix_precomputed_dh(u8 chaining_key[NOISE_HASH_LEN],
 					    const u8 precomputed[NOISE_PRIVATE_KEY_LEN])
 {
 	static u8 zero_point[NOISE_PRIVATE_KEY_LEN];
-	if (unlikely(!crypto_memneq(precomputed, zero_point, NOISE_PRIVATE_KEY_LEN)))
+	if (unlikely(!ConstantCompare(precomputed, zero_point, NOISE_PRIVATE_KEY_LEN)))
 		return false;
 	if (kdf(chaining_key, key, NULL, precomputed, NOISE_HASH_LEN,
 		NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN,

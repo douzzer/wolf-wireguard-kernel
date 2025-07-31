@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0
 #
 # Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+#
+# Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
 
 PWD := $(shell pwd)
 
@@ -24,7 +26,7 @@ NR_CPUS ?= 4
 MIRROR := https://download.wireguard.com/qemu-test/distfiles/
 
 rwildcard=$(foreach d,$(wildcard $1*),$(call rwildcard,$d/,$2) $(filter $(subst *,%,$2),$d))
-WIREGUARD_SOURCES := ../../Kbuild ../../Kconfig $(filter-out ../../tests/%,$(call rwildcard,../../,*.c *.h *.S *.pl *.include))
+WOLFGUARD_SOURCES := ../../Kbuild ../../Kconfig $(filter-out ../../tests/%,$(call rwildcard,../../,*.c *.h *.S *.pl *.include))
 
 default: qemu
 
@@ -68,7 +70,7 @@ $(eval $(call tar_download,IPROUTE2,iproute2,5.6.0,.tar.xz,https://www.kernel.or
 $(eval $(call tar_download,IPTABLES,iptables,1.8.4,.tar.bz2,https://www.netfilter.org/projects/iptables/files/))
 $(eval $(call tar_download,NMAP,nmap,7.80,.tar.bz2,https://nmap.org/dist/))
 $(eval $(call tar_download,IPUTILS,iputils,s20161105,.tar.gz,https://github.com/iputils/iputils/archive/s20161105.tar.gz/#))
-$(eval $(call tar_download,WIREGUARD_TOOLS,wireguard-tools,1.0.20191226,.tar.xz,https://git.zx2c4.com/wireguard-tools/snapshot/))
+$(eval $(call tar_download,WOLFGUARD_TOOLS,wolfguard-tools,1.0.20191226,.tar.xz,https://github.com/douzzer/wolfguard-tools/snapshot/))
 
 export CFLAGS ?= -O3 -pipe
 export LDFLAGS ?=
@@ -254,7 +256,7 @@ $(BUILD_PATH)/init-cpio-spec.txt:
 	echo "nod /dev/console 644 0 0 c 5 1" >> $@
 	echo "dir /bin 755 0 0" >> $@
 	echo "file /bin/iperf3 $(IPERF_PATH)/src/iperf3 755 0 0" >> $@
-	echo "file /bin/wg $(WIREGUARD_TOOLS_PATH)/src/wg 755 0 0" >> $@
+	echo "file /bin/wg $(WOLFGUARD_TOOLS_PATH)/src/wg 755 0 0" >> $@
 	echo "file /bin/bash $(BASH_PATH)/bash 755 0 0" >> $@
 	echo "file /bin/ip $(IPROUTE2_PATH)/ip/ip 755 0 0" >> $@
 	echo "file /bin/ss $(IPROUTE2_PATH)/misc/ss 755 0 0" >> $@
@@ -278,9 +280,9 @@ $(KERNEL_PATH)/.installed: $(KERNEL_TAR)
 	sed -i 's/^Elf_Addr per_cpu_load_addr;$$/static \0/' $(KERNEL_PATH)/arch/x86/tools/relocs.c || true
 	sed -i 's/pages = generic_max_swapfile_size();/pages = IS_ENABLED(CONFIG_SWAP) ? generic_max_swapfile_size() : 0;/' $(KERNEL_PATH)/arch/x86/mm/init.c || true
 	if grep -qr UTS_UBUNTU_RELEASE_ABI $(KERNEL_PATH)/debian/rules.d; then echo 'KBUILD_CFLAGS += -DUTS_UBUNTU_RELEASE_ABI=0' >> $(KERNEL_PATH)/Makefile; fi
-	sed -i "/^if INET\$$/a source \"net/wireguard/Kconfig\"" $(KERNEL_PATH)/net/Kconfig
-	sed -i "/^obj-\$$(CONFIG_NETFILTER).*+=/a obj-\$$(CONFIG_WIREGUARD) += wireguard/" $(KERNEL_PATH)/net/Makefile
-	ln -sfT $(shell readlink -f ../..) $(KERNEL_PATH)/net/wireguard
+	sed -i "/^if INET\$$/a source \"net/wolfguard/Kconfig\"" $(KERNEL_PATH)/net/Kconfig
+	sed -i "/^obj-\$$(CONFIG_NETFILTER).*+=/a obj-\$$(CONFIG_WOLFGUARD) += wolfguard/" $(KERNEL_PATH)/net/Makefile
+	ln -sfT $(shell readlink -f ../..) $(KERNEL_PATH)/net/wolfguard
 	touch $@
 else
 $(KERNEL_PATH)/.installed:
@@ -302,7 +304,7 @@ $(KERNEL_PATH)/.config: kernel.config arch/$(ARCH).config | $(KERNEL_PATH)/.inst
 	cd $(KERNEL_PATH) && ARCH=$(KERNEL_ARCH) scripts/kconfig/merge_config.sh -n .config minimal.config
 	$(if $(findstring -debug,$(KERNEL_VERSION)),cd $(KERNEL_PATH) && sed -i 's/^EXTRAVERSION =.*/EXTRAVERSION = -debug/' Makefile && ARCH=$(KERNEL_ARCH) scripts/kconfig/merge_config.sh -n .config $(PWD)/debug.config,)
 
-$(KERNEL_BZIMAGE): $(KERNEL_PATH)/.config $(BUILD_PATH)/init-cpio-spec.txt $(MUSL_PATH)/lib/libc.so $(IPERF_PATH)/src/iperf3 $(IPUTILS_PATH)/ping $(BASH_PATH)/bash $(IPROUTE2_PATH)/misc/ss $(IPROUTE2_PATH)/ip/ip $(IPTABLES_PATH)/iptables/xtables-legacy-multi $(NMAP_PATH)/ncat/ncat $(WIREGUARD_TOOLS_PATH)/src/wg $(BUILD_PATH)/init ../netns.sh $(WIREGUARD_SOURCES)
+$(KERNEL_BZIMAGE): $(KERNEL_PATH)/.config $(BUILD_PATH)/init-cpio-spec.txt $(MUSL_PATH)/lib/libc.so $(IPERF_PATH)/src/iperf3 $(IPUTILS_PATH)/ping $(BASH_PATH)/bash $(IPROUTE2_PATH)/misc/ss $(IPROUTE2_PATH)/ip/ip $(IPTABLES_PATH)/iptables/xtables-legacy-multi $(NMAP_PATH)/ncat/ncat $(WOLFGUARD_TOOLS_PATH)/src/wg $(BUILD_PATH)/init ../netns.sh $(WOLFGUARD_SOURCES)
 	LOCALVERSION="" $(MAKE) -C $(KERNEL_PATH) ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(CROSS_COMPILE) CC="$(CBUILD)-gcc -fno-PIE"
 
 $(BUILD_PATH)/include/linux/.installed: | $(KERNEL_PATH)/.config
@@ -346,12 +348,12 @@ $(LIBMNL_PATH)/src/.libs/libmnl.a: | $(LIBMNL_PATH)/.installed $(USERSPACE_DEPS)
 	$(MAKE) -C $(LIBMNL_PATH)
 	sed -i 's:prefix=.*:prefix=$(LIBMNL_PATH):' $(LIBMNL_PATH)/libmnl.pc
 
-$(WIREGUARD_TOOLS_PATH)/.installed: $(WIREGUARD_TOOLS_TAR)
+$(WOLFGUARD_TOOLS_PATH)/.installed: $(WOLFGUARD_TOOLS_TAR)
 	flock -s $<.lock tar -C $(BUILD_PATH) -xf $<
 	touch $@
 
-$(WIREGUARD_TOOLS_PATH)/src/wg: | $(WIREGUARD_TOOLS_PATH)/.installed $(LIBMNL_PATH)/src/.libs/libmnl.a $(USERSPACE_DEPS)
-	LDFLAGS="$(LDFLAGS) -L$(LIBMNL_PATH)/src/.libs" $(MAKE) -C $(WIREGUARD_TOOLS_PATH)/src LIBMNL_CFLAGS="-I$(LIBMNL_PATH)/include" LIBMNL_LDLIBS="-lmnl" wg
+$(WOLFGUARD_TOOLS_PATH)/src/wg: | $(WOLFGUARD_TOOLS_PATH)/.installed $(LIBMNL_PATH)/src/.libs/libmnl.a $(USERSPACE_DEPS)
+	LDFLAGS="$(LDFLAGS) -L$(LIBMNL_PATH)/src/.libs" $(MAKE) -C $(WOLFGUARD_TOOLS_PATH)/src LIBMNL_CFLAGS="-I$(LIBMNL_PATH)/include" LIBMNL_LDLIBS="-lmnl" wg
 	$(STRIP) -s $@
 
 $(BUILD_PATH)/init: init.c | $(USERSPACE_DEPS)

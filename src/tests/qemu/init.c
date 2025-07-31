@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
+ *
+ * Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
  */
 
 #define _GNU_SOURCE
@@ -52,8 +54,8 @@ static void print_banner(void)
 	if (uname(&utsname) < 0)
 		panic("uname");
 
-	len = strlen("    WireGuard Test Suite on       ") + strlen(utsname.sysname) + strlen(utsname.release) + strlen(utsname.machine);
-	printf("\x1b[45m\x1b[33m\x1b[1m%*.s\x1b[0m\n\x1b[45m\x1b[33m\x1b[1m    WireGuard Test Suite on %s %s %s    \x1b[0m\n\x1b[45m\x1b[33m\x1b[1m%*.s\x1b[0m\n\n", len, "", utsname.sysname, utsname.release, utsname.machine, len, "");
+	len = strlen("    WolfGuard Test Suite on       ") + strlen(utsname.sysname) + strlen(utsname.release) + strlen(utsname.machine);
+	printf("\x1b[45m\x1b[33m\x1b[1m%*.s\x1b[0m\n\x1b[45m\x1b[33m\x1b[1m    WolfGuard Test Suite on %s %s %s    \x1b[0m\n\x1b[45m\x1b[33m\x1b[1m%*.s\x1b[0m\n\n", len, "", utsname.sysname, utsname.release, utsname.machine, len, "");
 }
 
 static void seed_rng(void)
@@ -146,12 +148,12 @@ static void kmod_selftests(void)
 	if (fcntl(fileno(file), F_SETFL, O_NONBLOCK) < 0)
 		panic("fcntl(kmsg, nonblock)");
 	while (fgets(line, sizeof(line), file)) {
-		start = strstr(line, "wireguard: ");
+		start = strstr(line, "wolfguard: ");
 		if (!start)
 			continue;
 		start += 11;
 		*strchrnul(start, '\n') = '\0';
-		if (strstr(start, "www.wireguard.com"))
+		if (strstr(start, "www.wolfssl.com"))
 			break;
 		pass = strstr(start, ": pass");
 		if (!pass || pass[6] != '\0') {

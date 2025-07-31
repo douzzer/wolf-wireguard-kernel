@@ -2,10 +2,12 @@
 /*
  * Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.
  *
+ * Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
+ *
  * Documentation
  * =============
  *
- * The below enums and macros are for interfacing with WireGuard, using generic
+ * The below enums and macros are for interfacing with WolfGuard, using generic
  * netlink, with family WG_GENL_NAME and version WG_GENL_VERSION. It defines two
  * methods: get and set. Note that while they share many common attributes,
  * these two functions actually accept a slightly different set of inputs and
@@ -128,10 +130,10 @@
  * If an error occurs, NLMSG_ERROR will reply containing an errno.
  */
 
-#ifndef _WG_UAPI_WIREGUARD_H
-#define _WG_UAPI_WIREGUARD_H
+#ifndef _WG_UAPI_WOLFGUARD_H
+#define _WG_UAPI_WOLFGUARD_H
 
-#define WG_GENL_NAME "fips-wireguard"
+#define WG_GENL_NAME "wolfguard"
 #define WG_GENL_VERSION 1
 
 #define WG_KEY_LEN 32
@@ -193,4 +195,4 @@ enum wgallowedip_attribute {
 };
 #define WGALLOWEDIP_A_MAX (__WGALLOWEDIP_A_LAST - 1)
 
-#endif /* _WG_UAPI_WIREGUARD_H */
+#endif /* _WG_UAPI_WOLFGUARD_H */
