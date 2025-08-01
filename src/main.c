@@ -75,31 +75,3 @@ MODULE_IMPORT_NS("WOLFSSL");
 MODULE_IMPORT_NS(WOLFSSL);
 #endif
 #endif
-
-#include <linux/kprobes.h>
-void *my_kallsyms_lookup_name(const char *name);
-void *my_kallsyms_lookup_name(const char *name) {
-    static typeof(kallsyms_lookup_name) *kallsyms_lookup_name_ptr = NULL;
-    static struct kprobe kallsyms_lookup_name_kp = {
-        .symbol_name = "kallsyms_lookup_name"
-    };
-    unsigned long a;
-
-    if (! kallsyms_lookup_name_ptr) {
-        int ret;
-        kallsyms_lookup_name_kp.addr = NULL;
-        if ((ret = register_kprobe(&kallsyms_lookup_name_kp)) != 0) {
-            pr_err_once("ERROR: register_kprobe(&kallsyms_lookup_name_kp) failed: %d", ret);
-            return 0;
-        }
-        kallsyms_lookup_name_ptr = (typeof(kallsyms_lookup_name_ptr))kallsyms_lookup_name_kp.addr;
-        unregister_kprobe(&kallsyms_lookup_name_kp);
-        if (! kallsyms_lookup_name_ptr) {
-            pr_err_once("ERROR: kallsyms_lookup_name_kp.addr is null.");
-            return 0;
-        }
-    }
-
-    a = kallsyms_lookup_name_ptr(name);
-    return (void *)a;
-}
