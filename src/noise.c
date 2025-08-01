@@ -33,7 +33,7 @@ static u8 handshake_init_hash[NOISE_HASH_LEN] __ro_after_init;
 static u8 handshake_init_chaining_key[NOISE_HASH_LEN] __ro_after_init;
 static atomic64_t keypair_counter = ATOMIC64_INIT(0);
 
-void __init wg_noise_init(void)
+int __init wg_noise_init(void)
 {
 	wc_Sha256 sha;
 	int ret;
@@ -41,16 +41,12 @@ void __init wg_noise_init(void)
 	ret = wc_InitSha256(&sha);
 	if (ret != 0) {
 		pr_err("ERROR: wg_noise_init() wc_InitSha256() failed with code %d.\n", ret);
-		return;
+		return -EINVAL;
 	}
 
 	ret = wc_Sha256Update(&sha, handshake_name, (word32)sizeof(handshake_name));
 	if (ret == 0)
 		ret = wc_Sha256Final(&sha, handshake_init_chaining_key);
-	if (ret != 0) {
-		pr_err("ERROR: wg_noise_init() wc_sha256_oneshot() failed with code %d.\n", ret);
-		return;
-	}
 	if (ret == 0)
 		ret = wc_Sha256Update(&sha, handshake_init_chaining_key, NOISE_HASH_LEN);
 	if (ret == 0)
@@ -63,8 +59,12 @@ void __init wg_noise_init(void)
 	if (ret == 0)
 		ret = wc_linuxkm_drbg_init_ctx(&wc_wg_drbg);
 
-	if (ret != 0)
+	if (ret != 0) {
 		pr_err("ERROR: wg_noise_init() failed with code %d.\n", ret);
+                return -EINVAL;
+        }
+
+        return 0;
 }
 
 void __exit wg_noise_uninit(void)

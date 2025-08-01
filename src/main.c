@@ -27,7 +27,9 @@ static int __init mod_init(void)
 	    !wg_ratelimiter_selftest())
 		return -ENOTRECOVERABLE;
 #endif
-	wg_noise_init();
+	ret = wg_noise_init();
+	if (ret < 0)
+		goto err_device;
 
 	ret = wg_device_init();
 	if (ret < 0)

@@ -14,7 +14,9 @@ DKMSDIR ?= $(SRCDIR)/wolfguard
 DEPMOD ?= depmod
 DEPMODBASEDIR ?= /
 
-PWD := $(shell pwd)
+ifndef MODULE_TOP
+    MODULE_TOP=$(CURDIR)
+endif
 
 all: module
 debug: module-debug
@@ -23,23 +25,19 @@ ifneq ($(V),1)
 MAKEFLAGS += --no-print-directory
 endif
 
-WOLFGUARD_VERSION = $(patsubst v%,%,$(shell GIT_CEILING_DIRECTORIES="$(PWD)/../.." git describe --dirty 2>/dev/null))
+WOLFGUARD_VERSION = $(patsubst v%,%,$(shell GIT_CEILING_DIRECTORIES="$(MODULE_TOP)/../.." git describe --dirty 2>/dev/null))
 
 module:
-	@$(MAKE) -C $(KERNELDIR) M=$(PWD) WOLFGUARD_VERSION="$(WOLFGUARD_VERSION)" modules
+	@$(MAKE) -C $(KERNELDIR) M=$(MODULE_TOP) WOLFGUARD_VERSION="$(WOLFGUARD_VERSION)" modules
 
 module-debug:
-	@$(MAKE) -C $(KERNELDIR) M=$(PWD) V=1 CONFIG_WOLFGUARD_DEBUG=y WOLFGUARD_VERSION="$(WOLFGUARD_VERSION)" modules
+	@$(MAKE) -C $(KERNELDIR) M=$(MODULE_TOP) V=1 CONFIG_WOLFGUARD_DEBUG=y WOLFGUARD_VERSION="$(WOLFGUARD_VERSION)" modules
 
 clean:
-	@$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
+	@$(MAKE) -C $(KERNELDIR) M=$(MODULE_TOP) clean
 
 module-install:
-ifdef WOLFCRYPT
-	@$(MAKE) -C $(KERNELDIR) M=$(PWD) WOLFGUARD_VERSION="$(WOLFGUARD_VERSION)" INSTALL_MOD_DIR=wolfssl modules_install
-else
-	@$(MAKE) -C $(KERNELDIR) M=$(PWD) WOLFGUARD_VERSION="$(WOLFGUARD_VERSION)" modules_install
-endif
+	@$(MAKE) -C $(KERNELDIR) M=$(MODULE_TOP) WOLFGUARD_VERSION="$(WOLFGUARD_VERSION)" INSTALL_MOD_DIR=wolfssl modules_install
 	$(DEPMOD) -b "$(DEPMODBASEDIR)" -a $(KERNELRELEASE)
 
 install: module-install
@@ -56,7 +54,7 @@ check: clean
 	scan-build --html-title=wolfguard-linuxkm -maxloop 100 --view --keep-going $(MAKE) module CONFIG_WOLFGUARD_DEBUG=y C=2 CF="-D__CHECK_ENDIAN__"
 
 coccicheck: clean
-	@$(MAKE) -C $(KERNELDIR) M=$(PWD) CONFIG_WOLFGUARD_DEBUG=y coccicheck MODE=report
+	@$(MAKE) -C $(KERNELDIR) M=$(MODULE_TOP) CONFIG_WOLFGUARD_DEBUG=y coccicheck MODE=report
 
 cloc:
 	@cloc --skip-uniqueness --by-file --extract-with="$$(readlink -f ../kernel-tree-scripts/filter-compat-defines.sh) >FILE< > \$$(basename >FILE<)" $(filter-out wolfguard.mod.c,$(wildcard *.c)) $(wildcard *.h)
@@ -64,3 +62,35 @@ cloc:
 -include tests/debug.mk
 
 .PHONY: all module module-debug module-install install dkms-install clean cloc check style
+
+
+wolfguard.ko.signed: module
+	@cd '$(KERNELDIR)' || exit $$?;								\
+	while read configline; do								\
+		case "$$configline" in								\
+		CONFIG_MODULE_SIG*=*)								\
+			declare "$${configline%=*}"="$${configline#*=}"				\
+			;;									\
+		esac;										\
+	done < .config || exit $$?;								\
+	if [[ "$${CONFIG_MODULE_SIG}" = "y" && -n "$${CONFIG_MODULE_SIG_KEY}" && 		\
+		-n "$${CONFIG_MODULE_SIG_HASH}" && ( ! -f '$(MODULE_TOP)/$@' ||			\
+			'$(MODULE_TOP)/wolfguard.ko' -nt '$(MODULE_TOP)/$@' ) ]]; then		\
+		CONFIG_MODULE_SIG_KEY="$${CONFIG_MODULE_SIG_KEY#\"}";				\
+		CONFIG_MODULE_SIG_KEY="$${CONFIG_MODULE_SIG_KEY%\"}";				\
+		CONFIG_MODULE_SIG_HASH="$${CONFIG_MODULE_SIG_HASH#\"}";				\
+		CONFIG_MODULE_SIG_HASH="$${CONFIG_MODULE_SIG_HASH%\"}";				\
+		cp -p '$(MODULE_TOP)/wolfguard.ko' '$(MODULE_TOP)/$@' || exit $$?;		\
+		./scripts/sign-file "$${CONFIG_MODULE_SIG_HASH}"				\
+				    "$${CONFIG_MODULE_SIG_KEY}"					\
+				    "$${CONFIG_MODULE_SIG_KEY/%.pem/.x509}"			\
+				    '$(MODULE_TOP)/$@';						\
+		sign_file_exitval=$$?;								\
+		if [[ $$sign_file_exitval != 0 ]]; then						\
+			$(RM) -f '$(MODULE_TOP)/$@';						\
+			exit $$sign_file_exitval;						\
+		fi;										\
+		if [[ "$(quiet)" != "silent_" ]]; then						\
+			echo "  Module $@ signed by $${CONFIG_MODULE_SIG_KEY}.";		\
+		fi										\
+	fi

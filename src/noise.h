@@ -93,7 +93,7 @@ struct noise_handshake {
 
 struct wg_device;
 
-void wg_noise_init(void);
+int wg_noise_init(void);
 void wg_noise_uninit(void);
 
 void wg_noise_handshake_init(struct noise_handshake *handshake,
