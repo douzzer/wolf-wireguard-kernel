@@ -39,9 +39,9 @@ static int __init mod_init(void)
 	if (ret < 0)
 		goto err_netlink;
 
-	pr_info("WolfGuard " WOLFGUARD_VERSION " loaded. See www.wolfssl.com for information.\n");
+	pr_info("WolfGuard " WOLFGUARD_VERSION " loaded.  Contact info@wolfssl.com for information.\n");
 	pr_info("Copyright (C) 2015-2019 Jason A. Donenfeld <Jason@zx2c4.com>. All Rights Reserved.\n");
-	pr_info("Portions Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>\n");
+	pr_info("Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>\n");
 
 	return 0;
 
@@ -62,7 +62,7 @@ module_init(mod_init);
 module_exit(mod_exit);
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("WolfGuard secure network tunnel");
-MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com> and Daniel Pouzzner <douzzer@wolfssl.com>");
+MODULE_AUTHOR("Jason A. Donenfeld <Jason@zx2c4.com> (WireGuard) and Daniel Pouzzner <douzzer@wolfssl.com> (WolfGuard)");
 MODULE_VERSION(WOLFGUARD_VERSION);
 MODULE_ALIAS_RTNL_LINK(KBUILD_MODNAME);
 MODULE_ALIAS_GENL_FAMILY(WG_GENL_NAME);

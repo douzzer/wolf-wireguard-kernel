@@ -67,9 +67,78 @@ extern int wc_hmac_oneshot_prealloc(struct Hmac *wc_hmac, const int type, byte *
 extern int wc_hmac_oneshot(int type, byte *out, const size_t out_space, const byte *message,
 		    const size_t message_len, const byte *key, const size_t key_len);
 
-extern int wc_sha256_oneshot(byte *out, const byte *message, const size_t message_len);
+static inline int wc_sha256_oneshot(byte *out, const byte *message, const size_t message_len)
+{
+	int ret;
+	wc_Sha256 sha;
 
-extern int wc_sha256_oneshot2(byte *out, const byte *message1, const size_t message1_len, const byte *message2, const size_t message2_len);
+	if (message_len > UINT_MAX)
+		return -EINVAL;
+
+	ret = wc_InitSha256(&sha);
+	if (ret == 0)
+		ret = wc_Sha256Update(&sha, message, (word32)message_len);
+	if (ret == 0)
+		ret = wc_Sha256Final(&sha, out);
+
+        wc_Sha256Free(&sha);
+
+	return ret;
+}
+
+static inline int wc_sha256_oneshot2(byte *out, const byte *message1, const size_t message1_len, const byte *message2, const size_t message2_len)
+{
+	int ret;
+	wc_Sha256 sha;
+
+	if ((message1_len > UINT_MAX) || (message2_len > UINT_MAX))
+		return -EINVAL;
+
+	ret = wc_InitSha256(&sha);
+	if (ret == 0)
+		ret = wc_Sha256Update(&sha, message1, (word32)message1_len);
+	if (ret == 0)
+		ret = wc_Sha256Update(&sha, message2, (word32)message2_len);
+	if (ret == 0)
+		ret = wc_Sha256Final(&sha, out);
+
+        wc_Sha256Free(&sha);
+
+	return ret;
+}
+
+static inline u64 wc_u64_keyed_hash(const byte *key, const size_t key_len, const byte *message, const size_t message_len) {
+    u64 ret[WC_SHA256_DIGEST_SIZE / sizeof(u64)];
+    if (wc_sha256_oneshot2((byte *)ret, key, key_len, message, (word32)message_len) < 0)
+        return ~0UL;
+    else
+        return ret[0];
+}
+
+static inline u32 wc_u32_keyed_hash(const byte *key, const size_t key_len, const byte *message, const size_t message_len) {
+    u32 ret[WC_SHA256_DIGEST_SIZE / sizeof(u32)];
+    if (wc_sha256_oneshot2((byte *)ret, key, key_len, message, (word32)message_len) < 0)
+        return ~0U;
+    else
+        return ret[0];
+}
+
+static inline u32 wc_2u32_keyed_hash(const byte *key, const size_t key_len, u32 u1, u32 u2) {
+    struct __attribute__((packed)) {
+        u32 u1;
+        u32 u2;
+    } ubuf = { .u1 = u1, .u2 = u2 };
+    return wc_u32_keyed_hash(key, key_len, (byte *)&ubuf, sizeof(ubuf));
+}
+
+static inline u32 wc_3u32_keyed_hash(const byte *key, const size_t key_len, u32 u1, u32 u2, u32 u3) {
+    struct __attribute__((packed)) {
+        u32 u1;
+        u32 u2;
+        u32 u3;
+    } ubuf = { .u1 = u1, .u2 = u2, .u3 = u3 };
+    return wc_u32_keyed_hash(key, key_len, (byte *)&ubuf, sizeof(ubuf));
+}
 
 extern int wc_AesGcm_Appended_Tag_Encrypt(Aes* aes, byte* out, word32 out_space,
                                           const byte* in, word32 in_sz,

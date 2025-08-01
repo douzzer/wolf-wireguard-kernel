@@ -12,11 +12,6 @@ ifeq ($(wildcard $(srctree)/include/linux/ptr_ring.h),)
 ccflags-y += -I$(kbuild-dir)/compat/ptr_ring/include
 endif
 
-ifeq ($(wildcard $(srctree)/include/linux/siphash.h),)
-ccflags-y += -I$(kbuild-dir)/compat/siphash/include
-wolfguard-y += compat/siphash/siphash.o
-endif
-
 ifeq ($(wildcard $(srctree)/include/net/dst_cache.h),)
 ccflags-y += -I$(kbuild-dir)/compat/dst_cache/include
 wolfguard-y += compat/dst_cache/dst_cache.o

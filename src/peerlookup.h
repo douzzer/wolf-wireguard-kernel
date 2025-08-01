@@ -10,14 +10,13 @@
 
 #include <linux/hashtable.h>
 #include <linux/mutex.h>
-#include <linux/siphash.h>
 
 struct wg_peer;
 
 struct pubkey_hashtable {
 	/* TODO: move to rhashtable */
 	DECLARE_HASHTABLE(hashtable, 11);
-	siphash_key_t key;
+	u8 key[WC_SHA256_DIGEST_SIZE];
 	struct mutex lock;
 };
 

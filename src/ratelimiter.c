@@ -16,13 +16,12 @@
 #endif
 
 #include "ratelimiter.h"
-#include <linux/siphash.h>
 #include <linux/mm.h>
 #include <linux/slab.h>
 #include <net/ip.h>
 
 static struct kmem_cache *entry_cache;
-static hsiphash_key_t key;
+static u8 key[WC_SHA256_DIGEST_SIZE];
 static spinlock_t table_lock = __SPIN_LOCK_UNLOCKED("ratelimiter_table_lock");
 static DEFINE_MUTEX(init_lock);
 static u64 init_refcnt; /* Protected by init_lock, hence not atomic. */
@@ -95,10 +94,6 @@ static void wg_ratelimiter_gc_entries(struct work_struct *work)
 
 bool wg_ratelimiter_allow(struct sk_buff *skb, struct net *net)
 {
-	/* We only take the bottom half of the net pointer, so that we can hash
-	 * 3 words in the end. This way, siphash's len param fits into the final
-	 * u32, and we don't incur an extra round.
-	 */
 	const u32 net_word = (unsigned long)net;
 	struct ratelimiter_entry *entry;
 	struct hlist_head *bucket;
@@ -106,14 +101,14 @@ bool wg_ratelimiter_allow(struct sk_buff *skb, struct net *net)
 
 	if (skb->protocol == htons(ETH_P_IP)) {
 		ip = (u64 __force)ip_hdr(skb)->saddr;
-		bucket = &table_v4[hsiphash_2u32(net_word, ip, &key) &
+		bucket = &table_v4[wc_2u32_keyed_hash(key, sizeof(key), net_word, ip) &
 				   (table_size - 1)];
 	}
 #if IS_ENABLED(CONFIG_IPV6)
 	else if (skb->protocol == htons(ETH_P_IPV6)) {
 		/* Only use 64 bits, so as to ratelimit the whole /64. */
 		memcpy(&ip, &ipv6_hdr(skb)->saddr, sizeof(ip));
-		bucket = &table_v6[hsiphash_3u32(net_word, ip >> 32, ip, &key) &
+		bucket = &table_v6[wc_3u32_keyed_hash(key, sizeof(key), net_word, ip >> 32, ip) &
 				   (table_size - 1)];
 	}
 #endif
@@ -201,7 +196,7 @@ int wg_ratelimiter_init(void)
 #endif
 
 	queue_delayed_work(system_power_efficient_wq, &gc_work, HZ);
-	get_random_bytes(&key, sizeof(key));
+	get_random_bytes(key, sizeof(key));
 out:
 	mutex_unlock(&init_lock);
 	return 0;

@@ -90,7 +90,7 @@ wolfguard.ko.signed: module
 			$(RM) -f '$(MODULE_TOP)/$@';						\
 			exit $$sign_file_exitval;						\
 		fi;										\
-		if [[ "$(quiet)" != "silent_" ]]; then						\
+		if [[ "$(word 1,$(MAKEFLAGS))" != "s" ]]; then					\
 			echo "  Module $@ signed by $${CONFIG_MODULE_SIG_KEY}.";		\
 		fi										\
 	fi

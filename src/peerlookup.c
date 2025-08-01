@@ -10,11 +10,11 @@
 static struct hlist_head *pubkey_bucket(struct pubkey_hashtable *table,
 					const u8 pubkey[NOISE_PUBLIC_KEY_LEN])
 {
-	/* siphash gives us a secure 64bit number based on a random key. Since
-	 * the bits are uniformly distributed, we can then mask off to get the
-	 * bits we need.
+	/* u64 wc_u64_keyed_hash gives us a secure 64bit number based on a
+	 * random key using SHA256. Since the bits are uniformly distributed, we
+	 * can then mask off to get the bits we need.
 	 */
-	const u64 hash = siphash(pubkey, NOISE_PUBLIC_KEY_LEN, &table->key);
+	const u64 hash = wc_u64_keyed_hash(table->key, sizeof(table->key), pubkey, NOISE_PUBLIC_KEY_LEN);
 
 	return &table->hashtable[hash & (HASH_SIZE(table->hashtable) - 1)];
 }

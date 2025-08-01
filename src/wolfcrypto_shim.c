@@ -50,46 +50,6 @@ int wc_hmac_oneshot(const int type, byte *out, const size_t out_space, const byt
 	return ret;
 }
 
-int wc_sha256_oneshot(byte *out, const byte *message, const size_t message_len)
-{
-	int ret;
-	wc_Sha256 sha;
-
-	if (message_len > UINT_MAX)
-		return -EINVAL;
-
-	ret = wc_InitSha256(&sha);
-	if (ret == 0)
-		ret = wc_Sha256Update(&sha, message, (word32)message_len);
-	if (ret == 0)
-		ret = wc_Sha256Final(&sha, out);
-
-        wc_Sha256Free(&sha);
-
-	return ret;
-}
-
-int wc_sha256_oneshot2(byte *out, const byte *message1, const size_t message1_len, const byte *message2, const size_t message2_len)
-{
-	int ret;
-	wc_Sha256 sha;
-
-	if ((message1_len > UINT_MAX) || (message2_len > UINT_MAX))
-		return -EINVAL;
-
-	ret = wc_InitSha256(&sha);
-	if (ret == 0)
-		ret = wc_Sha256Update(&sha, message1, (word32)message1_len);
-	if (ret == 0)
-		ret = wc_Sha256Update(&sha, message2, (word32)message2_len);
-	if (ret == 0)
-		ret = wc_Sha256Final(&sha, out);
-
-        wc_Sha256Free(&sha);
-
-	return ret;
-}
-
 static const byte ZeroNonce[AES_IV_SIZE] = {};
 
 int wc_AesGcm_Appended_Tag_Encrypt(Aes* aes, byte* out, word32 out_space,

@@ -3,6 +3,7 @@ cscope.out
 *.d
 *.dwo
 *.ko
+*.ko.signed
 *.mod
 *.mod.c
 *.a
@@ -21,4 +22,3 @@ src/tests/qemu/distfiles/
 *.nam
 *.til
 .cache.mk
-src/crypto/zinc/*/*.S
