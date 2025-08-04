@@ -332,7 +332,7 @@ bool wg_noise_received_with_keypair(struct noise_keypairs *keypairs,
 /* Must hold static_identity->lock */
 void wg_noise_set_static_identity_private_key(
 	struct noise_static_identity *static_identity,
-	const u8 private_key[NOISE_PUBLIC_KEY_LEN])
+	const u8 private_key[NOISE_PRIVATE_KEY_LEN])
 {
 	memcpy(static_identity->static_private, private_key,
 	       NOISE_PRIVATE_KEY_LEN);
@@ -450,16 +450,16 @@ static bool __must_check mix_dh(u8 chaining_key[NOISE_HASH_LEN],
 				const u8 private[NOISE_PRIVATE_KEY_LEN],
 				const u8 public[NOISE_PUBLIC_KEY_LEN])
 {
-	u8 dh_calculation[NOISE_PUBLIC_KEY_LEN];
+	u8 dh_calculation[NOISE_PRIVATE_KEY_LEN];
 
 	if (wc_ecc_shared_secret_exim(dh_calculation, sizeof(dh_calculation),
 				      private, NOISE_PRIVATE_KEY_LEN,
 				      public, NOISE_PUBLIC_KEY_LEN) != 0)
 		return false;
 	if (kdf(chaining_key, key, NULL, dh_calculation, NOISE_HASH_LEN,
-		NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PUBLIC_KEY_LEN, chaining_key) != 0)
+		NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PRIVATE_KEY_LEN, chaining_key) != 0)
 		return false;
-	memzero_explicit(dh_calculation, NOISE_PUBLIC_KEY_LEN);
+	memzero_explicit(dh_calculation, NOISE_PRIVATE_KEY_LEN);
 	return true;
 }
 
@@ -799,8 +799,8 @@ wg_noise_handshake_consume_response(struct message_handshake_response *src,
 	u8 hash[NOISE_HASH_LEN];
 	u8 chaining_key[NOISE_HASH_LEN];
 	u8 e[NOISE_PUBLIC_KEY_LEN];
-	u8 ephemeral_private[NOISE_PUBLIC_KEY_LEN];
-	u8 static_private[NOISE_PUBLIC_KEY_LEN];
+	u8 ephemeral_private[NOISE_PRIVATE_KEY_LEN];
+	u8 static_private[NOISE_PRIVATE_KEY_LEN];
 	u8 preshared_key[NOISE_SYMMETRIC_KEY_LEN];
 
 	down_read(&wg->static_identity.lock);
@@ -819,7 +819,7 @@ wg_noise_handshake_consume_response(struct message_handshake_response *src,
 	memcpy(hash, handshake->hash, NOISE_HASH_LEN);
 	memcpy(chaining_key, handshake->chaining_key, NOISE_HASH_LEN);
 	memcpy(ephemeral_private, handshake->ephemeral_private,
-	       NOISE_PUBLIC_KEY_LEN);
+	       NOISE_PRIVATE_KEY_LEN);
 	memcpy(preshared_key, handshake->preshared_key,
 	       NOISE_SYMMETRIC_KEY_LEN);
 	up_read(&handshake->lock);
@@ -870,8 +870,8 @@ out:
 	memzero_explicit(key, NOISE_SYMMETRIC_KEY_LEN);
 	memzero_explicit(hash, NOISE_HASH_LEN);
 	memzero_explicit(chaining_key, NOISE_HASH_LEN);
-	memzero_explicit(ephemeral_private, NOISE_PUBLIC_KEY_LEN);
-	memzero_explicit(static_private, NOISE_PUBLIC_KEY_LEN);
+	memzero_explicit(ephemeral_private, NOISE_PRIVATE_KEY_LEN);
+	memzero_explicit(static_private, NOISE_PRIVATE_KEY_LEN);
 	memzero_explicit(preshared_key, NOISE_SYMMETRIC_KEY_LEN);
 	up_read(&wg->static_identity.lock);
 	return ret_peer;

@@ -27,14 +27,14 @@
  *
  *    WGDEVICE_A_IFINDEX: NLA_U32
  *    WGDEVICE_A_IFNAME: NLA_NUL_STRING, maxlen IFNAMSIZ - 1
- *    WGDEVICE_A_PRIVATE_KEY: NLA_EXACT_LEN, len WG_KEY_LEN
- *    WGDEVICE_A_PUBLIC_KEY: NLA_EXACT_LEN, len WG_KEY_LEN
+ *    WGDEVICE_A_PRIVATE_KEY: NLA_EXACT_LEN, len WG_PRIVATE_KEY_LEN
+ *    WGDEVICE_A_PUBLIC_KEY: NLA_EXACT_LEN, len WG_PUBLIC_KEY_LEN
  *    WGDEVICE_A_LISTEN_PORT: NLA_U16
  *    WGDEVICE_A_FWMARK: NLA_U32
  *    WGDEVICE_A_PEERS: NLA_NESTED
  *        0: NLA_NESTED
- *            WGPEER_A_PUBLIC_KEY: NLA_EXACT_LEN, len WG_KEY_LEN
- *            WGPEER_A_PRESHARED_KEY: NLA_EXACT_LEN, len WG_KEY_LEN
+ *            WGPEER_A_PUBLIC_KEY: NLA_EXACT_LEN, len WG_PUBLIC_KEY_LEN
+ *            WGPEER_A_PRESHARED_KEY: NLA_EXACT_LEN, len WG_SYMMETRIC_KEY_LEN
  *            WGPEER_A_ENDPOINT: NLA_MIN_LEN(struct sockaddr), struct sockaddr_in or struct sockaddr_in6
  *            WGPEER_A_PERSISTENT_KEEPALIVE_INTERVAL: NLA_U16
  *            WGPEER_A_LAST_HANDSHAKE_TIME: NLA_EXACT_LEN, struct __kernel_timespec
@@ -82,12 +82,12 @@
  *    WGDEVICE_A_IFNAME: NLA_NUL_STRING, maxlen IFNAMSIZ - 1
  *    WGDEVICE_A_FLAGS: NLA_U32, 0 or WGDEVICE_F_REPLACE_PEERS if all current
  *                      peers should be removed prior to adding the list below.
- *    WGDEVICE_A_PRIVATE_KEY: len WG_KEY_LEN, all zeros to remove
+ *    WGDEVICE_A_PRIVATE_KEY: len WG_PRIVATE_KEY_LEN, all zeros to remove
  *    WGDEVICE_A_LISTEN_PORT: NLA_U16, 0 to choose randomly
  *    WGDEVICE_A_FWMARK: NLA_U32, 0 to disable
  *    WGDEVICE_A_PEERS: NLA_NESTED
  *        0: NLA_NESTED
- *            WGPEER_A_PUBLIC_KEY: len WG_KEY_LEN
+ *            WGPEER_A_PUBLIC_KEY: len WG_PUBLIC_KEY_LEN
  *            WGPEER_A_FLAGS: NLA_U32, 0 and/or WGPEER_F_REMOVE_ME if the
  *                            specified peer should not exist at the end of the
  *                            operation, rather than added/updated and/or
@@ -95,7 +95,7 @@
  *                            IPs of this peer should be removed prior to adding
  *                            the list below and/or WGPEER_F_UPDATE_ONLY if the
  *                            peer should only be set if it already exists.
- *            WGPEER_A_PRESHARED_KEY: len WG_KEY_LEN, all zeros to remove
+ *            WGPEER_A_PRESHARED_KEY: len WG_SYMMETRIC_KEY_LEN, all zeros to remove
  *            WGPEER_A_ENDPOINT: struct sockaddr_in or struct sockaddr_in6
  *            WGPEER_A_PERSISTENT_KEEPALIVE_INTERVAL: NLA_U16, 0 to disable
  *            WGPEER_A_ALLOWEDIPS: NLA_NESTED
@@ -136,7 +136,9 @@
 #define WG_GENL_NAME "wolfguard"
 #define WG_GENL_VERSION 1
 
-#define WG_KEY_LEN 32
+#define WG_PUBLIC_KEY_LEN 65 /* Size of uncompressed SECP256R1 public key */,
+#define WG_PRIVATE_KEY_LEN 32 /* Size of SECP256R1 private key */
+#define WG_SYMMETRIC_KEY_LEN 32 /* AES_256_KEY_SIZE */
 
 enum wg_cmd {
 	WG_CMD_GET_DEVICE,

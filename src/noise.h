@@ -117,7 +117,7 @@ void wg_noise_expire_current_peer_keypairs(struct wg_peer *peer);
 
 void wg_noise_set_static_identity_private_key(
 	struct noise_static_identity *static_identity,
-	const u8 private_key[NOISE_PUBLIC_KEY_LEN]);
+	const u8 private_key[NOISE_PRIVATE_KEY_LEN]);
 void wg_noise_precompute_static_static(struct wg_peer *peer);
 
 bool
