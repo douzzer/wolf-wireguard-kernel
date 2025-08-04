@@ -164,13 +164,16 @@ err_oom:
 
 int wg_ratelimiter_init(void)
 {
+	int ret;
 	mutex_lock(&init_lock);
 	if (++init_refcnt != 1)
 		goto out;
 
 	entry_cache = KMEM_CACHE(ratelimiter_entry, 0);
-	if (!entry_cache)
+	if (!entry_cache) {
+		ret = -ENOMEM;
 		goto err;
+	}
 
 	/* xt_hashlimit.c uses a slightly different algorithm for ratelimiting,
 	 * but what it shares in common is that it uses a massive hashtable. So,
@@ -184,24 +187,40 @@ int wg_ratelimiter_init(void)
 	max_entries = table_size * 8;
 
 	table_v4 = kvzalloc(table_size * sizeof(*table_v4), GFP_KERNEL);
-	if (unlikely(!table_v4))
+	if (unlikely(!table_v4)) {
+		ret = -ENOMEM;
 		goto err_kmemcache;
+	}
 
 #if IS_ENABLED(CONFIG_IPV6)
 	table_v6 = kvzalloc(table_size * sizeof(*table_v6), GFP_KERNEL);
 	if (unlikely(!table_v6)) {
-		kvfree(table_v4);
+		ret = -ENOMEM;
 		goto err_kmemcache;
 	}
 #endif
 
 	queue_delayed_work(system_power_efficient_wq, &gc_work, HZ);
-	get_random_bytes(key, sizeof(key));
+	ret = wc_get_random_bytes(key, sizeof(key));
+	if (ret != 0)
+		goto err_kmemcache;
+
 out:
 	mutex_unlock(&init_lock);
 	return 0;
 
 err_kmemcache:
+
+	if (table_v4) {
+		kvfree(table_v4);
+		table_v4 = NULL;
+	}
+#if IS_ENABLED(CONFIG_IPV6)
+	if (table_v6) {
+		kvfree(table_v6);
+		table_v6 = NULL;
+	}
+#endif
 	kmem_cache_destroy(entry_cache);
 err:
 	--init_refcnt;

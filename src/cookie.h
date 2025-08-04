@@ -40,10 +40,10 @@ enum cookie_mac_state {
 	VALID_MAC_WITH_COOKIE
 };
 
-void wg_cookie_checker_init(struct cookie_checker *checker,
+WARN_UNUSED_RESULT int wg_cookie_checker_init(struct cookie_checker *checker,
 			    struct wg_device *wg);
-int wg_cookie_checker_precompute_device_keys(struct cookie_checker *checker);
-int wg_cookie_checker_precompute_peer_keys(struct wg_peer *peer);
+WARN_UNUSED_RESULT int wg_cookie_checker_precompute_device_keys(struct cookie_checker *checker);
+WARN_UNUSED_RESULT int wg_cookie_checker_precompute_peer_keys(struct wg_peer *peer);
 void wg_cookie_init(struct cookie *cookie);
 
 enum cookie_mac_state wg_cookie_validate_packet(struct cookie_checker *checker,

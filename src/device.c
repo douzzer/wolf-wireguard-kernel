@@ -342,7 +342,7 @@ static int wg_newlink(struct net *src_net, struct net_device *dev,
 	struct net *link_net = rtnl_newlink_link_net(params);
 #endif
 	struct wg_device *wg = netdev_priv(dev);
-	int ret = -ENOMEM;
+	int ret;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
 	rcu_assign_pointer(wg->creating_net, link_net);
@@ -354,7 +354,12 @@ static int wg_newlink(struct net *src_net, struct net_device *dev,
 	mutex_init(&wg->device_update_lock);
 	skb_queue_head_init(&wg->incoming_handshakes);
 	wg_allowedips_init(&wg->peer_allowedips);
-	wg_cookie_checker_init(&wg->cookie_checker, wg);
+	ret = wg_cookie_checker_init(&wg->cookie_checker, wg);
+	if (ret)
+		return ret;
+
+	ret = -ENOMEM;
+
 	INIT_LIST_HEAD(&wg->peer_list);
 	wg->device_update_gen = 1;
 

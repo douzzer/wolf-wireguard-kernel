@@ -178,6 +178,8 @@ struct wc_linuxkm_drbg_ctx {
     struct wc_rng_inst {
         wolfSSL_Atomic_Int lock;
         WC_RNG rng;
+        byte rnd_pool[1024];
+        word32 rnd_pool_offset;
     } *rngs; /* one per CPU ID */
 };
 extern struct wc_linuxkm_drbg_ctx wc_wg_drbg;
@@ -188,7 +190,8 @@ struct wc_rng_inst *get_drbg_n(struct wc_linuxkm_drbg_ctx *ctx, int n);
 void put_drbg(struct wc_rng_inst *drbg);
 int wc_linuxkm_drbg_generate(struct wc_linuxkm_drbg_ctx *ctx,
                              const u8 *src, unsigned int slen,
-                             u8 *dst, unsigned int dlen);
+                             u8 *dst, unsigned int dlen,
+                             int nofail_p);
 int wc_linuxkm_drbg_seed(struct wc_linuxkm_drbg_ctx *ctx,
                          const u8 *seed, unsigned int slen);
 
@@ -204,5 +207,66 @@ int wc_ecc_shared_secret_exim(u8 *secret, size_t secret_len,
                               const u8 *private, size_t private_len,
                               const u8 *public, size_t public_len);
 
+static inline WARN_UNUSED_RESULT int wc_get_random_bytes(u8 *dst, unsigned int dlen) {
+    return wc_linuxkm_drbg_generate(&wc_wg_drbg, NULL, 0, dst, dlen, 0);
+}
 
-#endif
+/* Note these wrappers fall back to native get_random_bytes() if
+ * wc_linuxkm_drbg_generate() fails for any reason.  The values returned by
+ * wc_get_random_u*() are used only for internal purposes, never in
+ * security-critical contexts, and are expected to succeed unconditionally.  Our
+ * wc_linuxkm_drbg_generate() cannot succeed unconditionally, but native
+ * get_random_bytes() does.
+ */
+#define IMPLEMENT_RANDOM_WORD_GENERATOR(type)                           \
+    static inline type wc_get_random_ ## type (void) {                  \
+        type ret;                                                       \
+        wc_linuxkm_drbg_generate(&wc_wg_drbg, NULL, 0, (u8 *)&ret, (word32)sizeof(ret), 1); \
+        return ret;                                                     \
+    }                                                                   \
+    struct swallow_the_semicolon
+
+IMPLEMENT_RANDOM_WORD_GENERATOR(u8);
+IMPLEMENT_RANDOM_WORD_GENERATOR(u16);
+IMPLEMENT_RANDOM_WORD_GENERATOR(u32);
+IMPLEMENT_RANDOM_WORD_GENERATOR(u64);
+
+/* adapted from __get_random_u32_below() in drivers/char/random.c and
+ * get_random_u32_below() in include/linux/random.h.
+ */
+static inline word32 wc_get_random_u32_below(u32 ceil) {
+    BUILD_BUG_ON_MSG(!ceil, "wc_get_random_u32_below() must take ceil > 0");
+    if (ceil <= 1)
+        return 0;
+
+    if (__builtin_constant_p(ceil)) {
+        for (;;) {
+                if (ceil <= 1U << 8) {
+                        u32 mult = ceil * wc_get_random_u8();
+                        if (likely(is_power_of_2(ceil) || (u8)mult >= (1U << 8) % ceil))
+                                return mult >> 8;
+                } else if (ceil <= 1U << 16) {
+                        u32 mult = ceil * wc_get_random_u16();
+                        if (likely(is_power_of_2(ceil) || (u16)mult >= (1U << 16) % ceil))
+                                return mult >> 16;
+                } else {
+                        u64 mult = (u64)ceil * wc_get_random_u32();
+                        if (likely(is_power_of_2(ceil) || (u32)mult >= -ceil % ceil))
+                                return mult >> 32;
+                }
+        }
+    }
+    else {
+        u64 mult = (u64)ceil * wc_get_random_u32();
+
+        if (unlikely((u32)mult < ceil)) {
+            u32 bound = -ceil % ceil;
+            while (unlikely((u32)mult < bound))
+                mult = (u64)ceil * wc_get_random_u32();
+        }
+
+        return mult >> 32;
+    }
+}
+
+#endif /* WOLFCRYPTO_SHIM_H */

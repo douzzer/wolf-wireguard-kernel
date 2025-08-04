@@ -125,27 +125,6 @@ static inline void skb_reset_tc(struct sk_buff *skb)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
-#include <linux/random.h>
-#include <linux/siphash.h>
-static inline u32 __compat_get_random_u32(void)
-{
-	static siphash_key_t key;
-	static u32 counter = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-	static bool has_seeded = false;
-	if (unlikely(!has_seeded)) {
-		get_random_bytes(&key, sizeof(key));
-		has_seeded = true;
-	}
-#else
-	get_random_once(&key, sizeof(key));
-#endif
-	return siphash_2u32(counter++, get_random_int(), &key);
-}
-#define get_random_u32 __compat_get_random_u32
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && !defined(ISRHEL7)
 static inline void netif_keep_dst(struct net_device *dev)
 {
@@ -373,17 +352,6 @@ static inline bool rng_is_initialized(void)
 static inline bool rng_is_initialized(void)
 {
 	return true;
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
-static inline int get_random_bytes_wait(void *buf, int nbytes)
-{
-	int ret = wait_for_random_bytes();
-	if (unlikely(ret))
-		return ret;
-	get_random_bytes(buf, nbytes);
-	return 0;
 }
 #endif
 
@@ -716,34 +684,6 @@ static inline void cpu_to_le32_array(u32 *buf, unsigned int words)
 	while (words--) {
 		__cpu_to_le32s(buf);
 		buf++;
-	}
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
-#include <crypto/algapi.h>
-static inline void crypto_xor_cpy(u8 *dst, const u8 *src1, const u8 *src2,
-				  unsigned int size)
-{
-	if (IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS) &&
-	    __builtin_constant_p(size) &&
-	    (size % sizeof(unsigned long)) == 0) {
-		unsigned long *d = (unsigned long *)dst;
-		unsigned long *s1 = (unsigned long *)src1;
-		unsigned long *s2 = (unsigned long *)src2;
-
-		while (size > 0) {
-			*d++ = *s1++ ^ *s2++;
-			size -= sizeof(unsigned long);
-		}
-	} else {
-		if (unlikely(dst != src1))
-			memmove(dst, src1, size);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
-		crypto_xor(dst, src2, size);
-#else
-		__crypto_xor(dst, src2, size);
-#endif
 	}
 }
 #endif

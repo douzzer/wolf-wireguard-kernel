@@ -562,10 +562,12 @@ int wc_linuxkm_drbg_init_ctx(struct wc_linuxkm_drbg_ctx *ctx)
         ctx->rngs[i].lock = 0;
 	need_reenable_vec = (DISABLE_VECTOR_REGISTERS() == 0);
         ret = wc_InitRng(&ctx->rngs[i].rng);
+        if (ret == 0)
+            ret = wc_RNG_GenerateBlock(&ctx->rngs[i].rng, ctx->rngs[i].rnd_pool, sizeof(ctx->rngs[i].rnd_pool));
         if (need_reenable_vec)
             REENABLE_VECTOR_REGISTERS();
         if (ret != 0) {
-            pr_warn_once("WARNING: wc_InitRng returned %d\n",ret);
+            pr_warn_once("WARNING: wc_linuxkm_drbg_init_ctx: wc_InitRng/wc_RNG_GenerateBlock returned %d\n",ret);
             ret = -EINVAL;
             break;
         }
@@ -661,16 +663,26 @@ void put_drbg(struct wc_rng_inst *drbg) {
 }
 
 int wc_linuxkm_drbg_generate(struct wc_linuxkm_drbg_ctx *ctx,
-                        const u8 *src, unsigned int slen,
-                        u8 *dst, unsigned int dlen)
+                             const u8 *src, unsigned int slen,
+                             u8 *dst, unsigned int dlen,
+                             int nofail_p)
 {
     int ret, retried = 0;
-    int need_fpu_restore;
+    int need_put_drbg = 0, need_fpu_restore = 0;
     struct wc_rng_inst *drbg = get_drbg(ctx);
 
     if (! drbg) {
         pr_err_once("BUG: get_drbg() failed.");
-        return -EFAULT;
+        ret = -EFAULT;
+        goto out;
+    }
+
+    if ((src == NULL) && (dlen <= 8) && ((size_t)drbg->rnd_pool_offset <= sizeof(drbg->rnd_pool) - (size_t)dlen)) {
+        memcpy(dst, drbg->rnd_pool + drbg->rnd_pool_offset, dlen);
+        ForceZero(drbg->rnd_pool + drbg->rnd_pool_offset, dlen);
+        drbg->rnd_pool_offset += dlen;
+        put_drbg(drbg);
+        return 0;
     }
 
     /* make sure we don't cache an underlying SHA256 method that uses vector
@@ -683,13 +695,23 @@ retry:
     if (slen > 0) {
         ret = wc_RNG_DRBG_Reseed(&drbg->rng, src, slen);
         if (ret != 0) {
-            pr_warn_once("WARNING: wc_RNG_DRBG_Reseed returned %d\n",ret);
+            pr_warn_once("WARNING: wc_RNG_DRBG_Reseed returned %d.\n",ret);
             ret = -EINVAL;
             goto out;
         }
     }
 
-    ret = wc_RNG_GenerateBlock(&drbg->rng, dst, dlen);
+    if (dlen <= 8) {
+        ret = wc_RNG_GenerateBlock(&drbg->rng, drbg->rnd_pool, (word32)sizeof(drbg->rnd_pool));
+        if (ret == 0) {
+            memcpy(dst, drbg->rnd_pool, dlen);
+            ForceZero(drbg->rnd_pool, dlen);
+            drbg->rnd_pool_offset = dlen;
+            goto out;
+        }
+    }
+    else
+        ret = wc_RNG_GenerateBlock(&drbg->rng, dst, dlen);
 
     if (unlikely(ret == WC_NO_ERR_TRACE(RNG_FAILURE_E)) && (! retried)) {
         retried = 1;
@@ -713,9 +735,16 @@ out:
 
     if (need_fpu_restore)
         REENABLE_VECTOR_REGISTERS();
-    put_drbg(drbg);
+    if (need_put_drbg)
+        put_drbg(drbg);
 
-    return ret;
+    if ((ret == 0) || (! nofail_p))
+        return ret;
+
+    pr_warn_once("WARNING: wc_linuxkm_drbg_generate() failed with code %d -- using fallback to get_random_bytes().\n", ret);
+    get_random_bytes(dst, dlen);
+
+    return 0;
 }
 
 int wc_linuxkm_drbg_seed(struct wc_linuxkm_drbg_ctx *ctx,

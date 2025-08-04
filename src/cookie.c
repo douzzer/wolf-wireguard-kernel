@@ -20,13 +20,16 @@
 #include <net/ipv6.h>
 #include <crypto/algapi.h>
 
-void wg_cookie_checker_init(struct cookie_checker *checker,
+int wg_cookie_checker_init(struct cookie_checker *checker,
 			    struct wg_device *wg)
 {
+	int ret = wc_get_random_bytes(checker->secret, NOISE_HASH_LEN);
+	if (ret)
+		return ret;
 	init_rwsem(&checker->secret_lock);
 	checker->secret_birthdate = ktime_get_coarse_boottime_ns();
-	get_random_bytes(checker->secret, NOISE_HASH_LEN);
 	checker->device = wg;
+	return 0;
 }
 
 enum { COOKIE_KEY_LABEL_LEN = 8 };
@@ -115,7 +118,7 @@ static int make_cookie(u8 cookie[COOKIE_LEN], struct sk_buff *skb,
 				     COOKIE_SECRET_MAX_AGE)) {
 		down_write(&checker->secret_lock);
 		checker->secret_birthdate = ktime_get_coarse_boottime_ns();
-		get_random_bytes(checker->secret, NOISE_HASH_LEN);
+		ret = wc_get_random_bytes(checker->secret, NOISE_HASH_LEN);
 		up_write(&checker->secret_lock);
 	}
 
@@ -220,9 +223,10 @@ int wg_cookie_message_create(struct message_handshake_cookie *dst,
 
 	dst->header.type = cpu_to_le32(MESSAGE_HANDSHAKE_COOKIE);
 	dst->receiver_index = index;
-	get_random_bytes_wait(dst->nonce, COOKIE_NONCE_LEN);
+	ret = wc_get_random_bytes(dst->nonce, COOKIE_NONCE_LEN);
 
-	ret = make_cookie(cookie, skb, checker);
+	if (ret == 0)
+		ret = make_cookie(cookie, skb, checker);
 
 	if (ret == 0)
 		ret = wc_AesGcm_oneshot_encrypt(dst->encrypted_cookie, sizeof(dst->encrypted_cookie), checker->cookie_encryption_key, sizeof(checker->cookie_encryption_key), cookie, COOKIE_LEN,

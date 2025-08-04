@@ -22,11 +22,17 @@ static struct hlist_head *pubkey_bucket(struct pubkey_hashtable *table,
 struct pubkey_hashtable *wg_pubkey_hashtable_alloc(void)
 {
 	struct pubkey_hashtable *table = kvmalloc(sizeof(*table), GFP_KERNEL);
+	int ret;
 
 	if (!table)
 		return NULL;
 
-	get_random_bytes(&table->key, sizeof(table->key));
+	ret = wc_get_random_bytes(table->key, (word32)sizeof(table->key));
+	if (ret != 0) {
+		kvfree(table);
+		return NULL;
+	}
+
 	hash_init(table->hashtable);
 	mutex_init(&table->lock);
 	return table;
@@ -129,7 +135,7 @@ __le32 wg_index_hashtable_insert(struct index_hashtable *table,
 
 search_unused_slot:
 	/* First we try to find an unused slot, randomly, while unlocked. */
-	entry->index = (__force __le32)get_random_u32();
+	entry->index = (__force __le32)wc_get_random_u32();
 	hlist_for_each_entry_rcu_bh(existing_entry,
 				    index_bucket(table, entry->index),
 				    index_hash) {
