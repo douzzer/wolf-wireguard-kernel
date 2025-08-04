@@ -56,9 +56,6 @@ int __init wg_noise_init(void)
 
 	wc_Sha256Free(&sha);
 
-	if (ret == 0)
-		ret = wc_linuxkm_drbg_init_ctx(&wc_wg_drbg);
-
 	if (ret != 0) {
 		pr_err("ERROR: wg_noise_init() failed with code %d.\n", ret);
                 return -EINVAL;
@@ -66,12 +63,6 @@ int __init wg_noise_init(void)
 
         return 0;
 }
-
-void __exit wg_noise_uninit(void)
-{
-	wc_linuxkm_drbg_ctx_clear(&wc_wg_drbg);
-}
-
 
 /* Must hold peer->handshake.static_identity->lock */
 void wg_noise_precompute_static_static(struct wg_peer *peer)

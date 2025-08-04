@@ -22,11 +22,16 @@ static int __init mod_init(void)
 {
 	int ret;
 
+	ret = wc_linuxkm_drbg_init_ctx(&wc_wg_drbg);
+	if (ret < 0)
+		goto err_device;
+
 #ifdef DEBUG
 	if (!wg_allowedips_selftest() || !wg_packet_counter_selftest() ||
 	    !wg_ratelimiter_selftest())
 		return -ENOTRECOVERABLE;
 #endif
+
 	ret = wg_noise_init();
 	if (ret < 0)
 		goto err_device;
@@ -55,7 +60,7 @@ static void __exit mod_exit(void)
 {
 	wg_genetlink_uninit();
 	wg_device_uninit();
-        wg_noise_uninit();
+	wc_linuxkm_drbg_ctx_clear(&wc_wg_drbg);
 }
 
 module_init(mod_init);
