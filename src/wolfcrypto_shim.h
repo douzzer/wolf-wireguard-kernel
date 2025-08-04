@@ -207,8 +207,18 @@ int wc_ecc_shared_secret_exim(u8 *secret, size_t secret_len,
                               const u8 *private, size_t private_len,
                               const u8 *public, size_t public_len);
 
+/* with wc_get_random_bytes(), retval of 0 confirms wolfCrypt DRBG succeeded in
+ * fulfilling the call, else failure.
+ */
 static inline WARN_UNUSED_RESULT int wc_get_random_bytes(u8 *dst, unsigned int dlen) {
     return wc_linuxkm_drbg_generate(&wc_wg_drbg, NULL, 0, dst, dlen, 0);
+}
+
+/* with wc_get_random_bytes_nofail(), non-wolfCrypt PRNG is used as fallback to
+ * assure call is unconditionally fulfilled.
+ */
+static inline void wc_get_random_bytes_nofail(u8 *dst, unsigned int dlen) {
+    (void)wc_linuxkm_drbg_generate(&wc_wg_drbg, NULL, 0, dst, dlen, 1);
 }
 
 /* Note these wrappers fall back to native get_random_bytes() if
