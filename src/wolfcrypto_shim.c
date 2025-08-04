@@ -597,6 +597,9 @@ int wc_linuxkm_drbg_init_ctx(struct wc_linuxkm_drbg_ctx *ctx)
 struct wc_rng_inst *get_drbg(struct wc_linuxkm_drbg_ctx *ctx) {
     int n, new_lock_value;
 
+    if (! ctx->rngs)
+        return NULL;
+
     #if defined(CONFIG_SMP) && !defined(CONFIG_PREEMPT_COUNT) && \
         (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0))
     if (1) {
