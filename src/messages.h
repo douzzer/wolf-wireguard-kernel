@@ -8,14 +8,11 @@
 #ifndef _WG_MESSAGES_H
 #define _WG_MESSAGES_H
 
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/aes.h>
-#include <wolfssl/wolfcrypt/hmac.h>
-#include <wolfssl/wolfcrypt/ecc.h>
-
 #include <linux/kernel.h>
 #include <linux/param.h>
 #include <linux/skbuff.h>
+
+#include "wolfcrypt_glue.h"
 
 #define NOISE_CURVE_ID ECC_SECP256R1
 

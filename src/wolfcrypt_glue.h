@@ -25,6 +25,7 @@
 #include <wolfssl/wolfcrypt/aes.h>
 #include <wolfssl/wolfcrypt/hmac.h>
 #include <wolfssl/wolfcrypt/ecc.h>
+#include <wolfssl/wolfcrypt/random.h>
 
 #ifndef WOLFSSL_LINUXKM
     #error libwolfssl configured without --enable-linuxkm

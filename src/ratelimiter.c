@@ -20,6 +20,8 @@
 #include <linux/slab.h>
 #include <net/ip.h>
 
+#include "wolfcrypt_glue.h"
+
 static struct kmem_cache *entry_cache;
 static u8 key[WC_SHA256_DIGEST_SIZE];
 static spinlock_t table_lock = __SPIN_LOCK_UNLOCKED("ratelimiter_table_lock");

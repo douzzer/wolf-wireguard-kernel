@@ -19,6 +19,6 @@ obj-$(if $(KBUILD_EXTMOD),m,$(CONFIG_WOLFGUARD)) := wolfguard.o
 ifndef WOLFSSL_ROOT
 WOLFSSL_ROOT = $(src)/../../../../wolfssl
 endif
-ccflags-y += -I$(shell $(CC) -print-file-name=include) -I$(WOLFSSL_ROOT) -include $(src)/wolfcrypto_shim.h
-wolfguard-y += wolfcrypto_shim.o
+ccflags-y += -I$(shell $(CC) -print-file-name=include) -I$(WOLFSSL_ROOT)
+wolfguard-y += wolfcrypt_glue.o
 KBUILD_EXTRA_SYMBOLS := $(WOLFSSL_ROOT)/linuxkm/Module.symvers

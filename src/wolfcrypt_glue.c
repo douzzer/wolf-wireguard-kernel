@@ -3,8 +3,8 @@
  * Copyright (C) 2020-2025 wolfSSL Inc. <info@wolfssl.com>
  */
 
-#include "wolfcrypto_shim.h"
 #include <crypto/scatterwalk.h>
+#include "wolfcrypt_glue.h"
 
 int wc_hmac_oneshot_prealloc(struct Hmac *wc_hmac, const int type, byte *out, const size_t out_space, const byte *message,
 		    const size_t message_len, const byte *key, const size_t key_len)
