@@ -679,6 +679,7 @@ int wc_linuxkm_drbg_generate(struct wc_linuxkm_drbg_ctx *ctx,
         ret = -EFAULT;
         goto out;
     }
+    need_put_drbg = 1;
 
     if ((src == NULL) && (dlen <= 8) && ((size_t)drbg->rnd_pool_offset <= sizeof(drbg->rnd_pool) - (size_t)dlen)) {
         memcpy(dst, drbg->rnd_pool + drbg->rnd_pool_offset, dlen);
