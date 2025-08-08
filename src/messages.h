@@ -12,14 +12,15 @@
 #include <linux/param.h>
 #include <linux/skbuff.h>
 
+#include "uapi/wolfguard.h"
 #include "wolfcrypt_glue.h"
 
-#define NOISE_CURVE_ID ECC_SECP256R1
+#define NOISE_CURVE_ID WG_CURVE_ID
 
 enum noise_lengths {
-	NOISE_PUBLIC_KEY_LEN = 65 /* Size of uncompressed SECP256R1 public key */,
-	NOISE_PRIVATE_KEY_LEN = 32 /* Size of SECP256R1 private key */,
-	NOISE_SYMMETRIC_KEY_LEN = AES_256_KEY_SIZE,
+	NOISE_PUBLIC_KEY_LEN = WG_PUBLIC_KEY_LEN /* Size of uncompressed SECP256R1 public key */,
+	NOISE_PRIVATE_KEY_LEN = WG_PRIVATE_KEY_LEN /* Size of SECP256R1 private key */,
+	NOISE_SYMMETRIC_KEY_LEN = WG_SYMMETRIC_KEY_LEN,
 	NOISE_TIMESTAMP_LEN = sizeof(u64) + sizeof(u32),
 	NOISE_AUTHTAG_LEN = WC_AES_BLOCK_SIZE,
 	NOISE_HASH_LEN = WC_SHA256_DIGEST_SIZE

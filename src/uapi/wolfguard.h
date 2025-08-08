@@ -136,9 +136,13 @@
 #define WG_GENL_NAME "wolfguard"
 #define WG_GENL_VERSION 1
 
-#define WG_PUBLIC_KEY_LEN 65 /* Size of uncompressed SECP256R1 public key */
-#define WG_PRIVATE_KEY_LEN 32 /* Size of SECP256R1 private key */
-#define WG_SYMMETRIC_KEY_LEN 32 /* AES_256_KEY_SIZE */
+#ifndef WG_CURVE_ID
+    #define WG_CURVE_ID ECC_SECP256R1
+    #define WG_PUBLIC_KEY_LEN 65 /* Size of uncompressed SECP256R1 public key */
+    #define WG_PRIVATE_KEY_LEN 32 /* Size of SECP256R1 private key */
+    #define WG_SYMMETRIC_KEY_LEN 32 /* AES_256_KEY_SIZE */
+    #define WG_HANDSHAKE_NAME "Noise_IKpsk2_SECP256R1_AesGcm_SHA256"
+#endif
 
 enum wg_cmd {
 	WG_CMD_GET_DEVICE,

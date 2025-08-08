@@ -27,8 +27,8 @@
  * <- e, ee, se, psk, {}
  */
 
-static const u8 handshake_name[37] = "Noise_IKpsk2_SECP256R1_AesGcm_SHA256";
-static const u8 identifier_name[34] = "WolfGuard v1 info@wolfssl.com";
+static const u8 handshake_name[] = WG_HANDSHAKE_NAME;
+static const u8 identifier_name[] = "WolfGuard v1 info@wolfssl.com";
 static u8 handshake_init_hash[NOISE_HASH_LEN] __ro_after_init;
 static u8 handshake_init_chaining_key[NOISE_HASH_LEN] __ro_after_init;
 static atomic64_t keypair_counter = ATOMIC64_INIT(0);
