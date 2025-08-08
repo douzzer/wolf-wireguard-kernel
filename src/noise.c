@@ -75,7 +75,8 @@ void wg_noise_precompute_static_static(struct wg_peer *peer)
 				       peer->handshake.static_identity->static_private,
 				       sizeof(peer->handshake.static_identity->static_private),
 				       peer->handshake.remote_static,
-				       sizeof(peer->handshake.remote_static)) != 0))
+				       sizeof(peer->handshake.remote_static),
+                                       NOISE_CURVE_ID) != 0))
 	{
 		memset(peer->handshake.precomputed_static_static, 0,
 		       NOISE_PRIVATE_KEY_LEN);
@@ -445,7 +446,8 @@ static bool __must_check mix_dh(u8 chaining_key[NOISE_HASH_LEN],
 
 	if (wc_ecc_shared_secret_exim(dh_calculation, sizeof(dh_calculation),
 				      private, NOISE_PRIVATE_KEY_LEN,
-				      public, NOISE_PUBLIC_KEY_LEN) != 0)
+				      public, NOISE_PUBLIC_KEY_LEN,
+                                      NOISE_CURVE_ID) != 0)
 		return false;
 	if (kdf(chaining_key, key, NULL, dh_calculation, NOISE_HASH_LEN,
 		NOISE_SYMMETRIC_KEY_LEN, 0, NOISE_PRIVATE_KEY_LEN, chaining_key) != 0)

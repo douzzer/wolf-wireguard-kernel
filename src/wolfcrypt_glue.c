@@ -335,7 +335,7 @@ int wc_ecc_make_keypair_exim(u8 *private, const size_t private_len,
             &rng->rng,
             0 /* keysize -- use curve_id to designate the curve. */,
             key,
-            ECC_SECP256R1);
+            curve_id);
         if (ret)
             goto out;
 
@@ -432,7 +432,8 @@ out:
 
 int wc_ecc_shared_secret_exim(u8 *secret, size_t secret_len,
                               const u8 *private, size_t private_len,
-                              const u8 *public, size_t public_len)
+                              const u8 *public, size_t public_len,
+                              int curve_id)
 {
     ecc_key *privKey = NULL, *pubKey = NULL;
     int privKey_inited = 0, pubKey_inited = 0;
@@ -478,11 +479,11 @@ int wc_ecc_shared_secret_exim(u8 *secret, size_t secret_len,
 #endif
 
     ret = wc_ecc_import_private_key_ex(private, (word32)private_len,
-                                       NULL, 0, privKey, ECC_SECP256R1);
+                                       NULL, 0, privKey, curve_id);
     if (ret != 0)
         goto out;
 
-    ret = wc_ecc_import_x963_ex(public, (word32)public_len, pubKey, ECC_SECP256R1);
+    ret = wc_ecc_import_x963_ex(public, (word32)public_len, pubKey, curve_id);
     if (ret != 0)
         goto out;
 

@@ -206,7 +206,8 @@ int wc_ecc_private_to_public_exim(const u8 *private, const size_t private_len,
 
 int wc_ecc_shared_secret_exim(u8 *secret, size_t secret_len,
                               const u8 *private, size_t private_len,
-                              const u8 *public, size_t public_len);
+                              const u8 *public, size_t public_len,
+                              int curve_id);
 
 /* with wc_get_random_bytes(), retval of 0 confirms wolfCrypt DRBG succeeded in
  * fulfilling the call, else failure.
