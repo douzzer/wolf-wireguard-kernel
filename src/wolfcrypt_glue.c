@@ -558,6 +558,21 @@ int wc_ecc_private_to_public_exim(const u8 *private, const size_t private_len,
             goto out;
 
         {
+            struct wc_rng_inst *rng = get_drbg(&wc_wg_drbg);
+            if (! rng) {
+                ret = SYSLIB_FAILED_E;
+                goto out;
+            }
+
+            ret = wc_ecc_make_pub_ex(key, NULL /* pubOut */, &rng->rng);
+
+            put_drbg(rng);
+        }
+
+        if (ret)
+            goto out;
+
+        {
             word32 outLen = (word32)public_len;
             PRIVATE_KEY_UNLOCK();
             ret = wc_ecc_export_x963(key, public, &outLen);
