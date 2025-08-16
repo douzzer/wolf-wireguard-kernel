@@ -8,7 +8,7 @@
 
 #include <wolfssl/options.h>
 
-#if !defined(HAVE_AESGCM) || (!defined(HAVE_AESGCM_DECRYPT) && defined(NO_AES_DECRYPT)) || !defined(WOLFSSL_AESGCM_STREAM)
+#if !defined(HAVE_AESGCM) || (!defined(HAVE_AESGCM_DECRYPT) && defined(NO_AES_DECRYPT))
     #error libwolfssl missing AES-GCM with streaming
 #endif
 #if defined(NO_SHA256)

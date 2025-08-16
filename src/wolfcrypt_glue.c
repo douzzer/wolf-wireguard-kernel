@@ -910,6 +910,10 @@ int wc_linuxkm_drbg_generate(struct wc_linuxkm_drbg_ctx *ctx,
 
 retry:
 
+#if defined(HAVE_FIPS) && FIPS_VERSION_LT(6,0)
+    (void)src;
+    (void)slen;
+#else
     if (slen > 0) {
         int need_reenable_vec = (DISABLE_VECTOR_REGISTERS() == 0);
         ret = wc_RNG_DRBG_Reseed(&drbg->rng, src, slen);
@@ -921,6 +925,7 @@ retry:
             goto out;
         }
     }
+#endif
 
     if (dlen <= 8) {
         int need_reenable_vec = (DISABLE_VECTOR_REGISTERS() == 0);
@@ -980,6 +985,7 @@ out:
     return 0;
 }
 
+#if !defined(HAVE_FIPS) || FIPS_VERSION_GE(6,0)
 int wc_linuxkm_drbg_seed(struct wc_linuxkm_drbg_ctx *ctx,
                         const u8 *seed, unsigned int slen)
 {
@@ -1037,3 +1043,4 @@ int wc_linuxkm_drbg_seed(struct wc_linuxkm_drbg_ctx *ctx,
 
     WC_DEBUG_PR_NEG_RET(ret);
 }
+#endif
