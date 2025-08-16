@@ -53,19 +53,24 @@ static struct wg_device *lookup_interface(struct nlattr **attrs,
 {
 	struct net_device *dev = NULL;
 
-	if (!attrs[WGDEVICE_A_IFINDEX] == !attrs[WGDEVICE_A_IFNAME])
+	if (!attrs[WGDEVICE_A_IFINDEX] == !attrs[WGDEVICE_A_IFNAME]) {
+		WC_DEBUG_PR_IF_NEG(-EBADR);
 		return ERR_PTR(-EBADR);
+	}
 	if (attrs[WGDEVICE_A_IFINDEX])
 		dev = dev_get_by_index(sock_net(skb->sk),
 				       nla_get_u32(attrs[WGDEVICE_A_IFINDEX]));
 	else if (attrs[WGDEVICE_A_IFNAME])
 		dev = dev_get_by_name(sock_net(skb->sk),
 				      nla_data(attrs[WGDEVICE_A_IFNAME]));
-	if (!dev)
+	if (!dev) {
+		WC_DEBUG_PR_IF_NEG(-ENODEV);
 		return ERR_PTR(-ENODEV);
+	}
 	if (!dev->rtnl_link_ops || !dev->rtnl_link_ops->kind ||
 	    strcmp(dev->rtnl_link_ops->kind, KBUILD_MODNAME)) {
 		dev_put(dev);
+		WC_DEBUG_PR_IF_NEG(-EOPNOTSUPP);
 		return ERR_PTR(-EOPNOTSUPP);
 	}
 	return netdev_priv(dev);
@@ -78,14 +83,14 @@ static int get_allowedips(struct sk_buff *skb, const u8 *ip, u8 cidr,
 
 	allowedip_nest = nla_nest_start(skb, 0);
 	if (!allowedip_nest)
-		return -EMSGSIZE;
+		WC_DEBUG_PR_NEG_RET(-EMSGSIZE);
 
 	if (nla_put_u8(skb, WGALLOWEDIP_A_CIDR_MASK, cidr) ||
 	    nla_put_u16(skb, WGALLOWEDIP_A_FAMILY, family) ||
 	    nla_put(skb, WGALLOWEDIP_A_IPADDR, family == AF_INET6 ?
 		    sizeof(struct in6_addr) : sizeof(struct in_addr), ip)) {
 		nla_nest_cancel(skb, allowedip_nest);
-		return -EMSGSIZE;
+		WC_DEBUG_PR_NEG_RET(-EMSGSIZE);
 	}
 
 	nla_nest_end(skb, allowedip_nest);
@@ -110,7 +115,7 @@ get_peer(struct wg_peer *peer, struct sk_buff *skb, struct dump_ctx *ctx)
 	bool fail;
 
 	if (!peer_nest)
-		return -EMSGSIZE;
+		WC_DEBUG_PR_NEG_RET(-EMSGSIZE);
 
 	down_read(&peer->handshake.lock);
 	fail = nla_put(skb, WGPEER_A_PUBLIC_KEY, NOISE_PUBLIC_KEY_LEN,
@@ -181,7 +186,7 @@ get_peer(struct wg_peer *peer, struct sk_buff *skb, struct dump_ctx *ctx)
 			nla_nest_end(skb, allowedips_nest);
 			nla_nest_end(skb, peer_nest);
 			ctx->next_allowedip = allowedips_node;
-			return -EMSGSIZE;
+			WC_DEBUG_PR_NEG_RET(-EMSGSIZE);
 		}
 	}
 	nla_nest_end(skb, allowedips_nest);
@@ -192,7 +197,7 @@ no_allowedips:
 	return 0;
 err:
 	nla_nest_cancel(skb, peer_nest);
-	return -EMSGSIZE;
+	WC_DEBUG_PR_NEG_RET(-EMSGSIZE);
 }
 
 static int wg_get_device_start(struct netlink_callback *cb)
@@ -206,7 +211,7 @@ static int wg_get_device_start(struct netlink_callback *cb)
 	wg = lookup_interface(genl_dumpit_info(cb)->attrs, cb->skb);
 #endif
 	if (IS_ERR(wg))
-		return PTR_ERR(wg);
+		WC_DEBUG_PR_NEG_RET(PTR_ERR(wg));
 	DUMP_CTX(cb)->wg = wg;
 	return 0;
 }
@@ -289,7 +294,7 @@ out:
 
 	if (ret) {
 		genlmsg_cancel(skb, hdr);
-		return ret;
+		WC_DEBUG_PR_NEG_RET(ret);
 	}
 	genlmsg_end(skb, hdr);
 	if (done) {
@@ -327,7 +332,7 @@ static int set_port(struct wg_device *wg, u16 port)
 		wg->incoming_port = port;
 		return 0;
 	}
-	return wg_socket_init(wg, port);
+	WC_DEBUG_PR_NEG_RET(wg_socket_init(wg, port));
 }
 
 static int set_allowedip(struct wg_peer *peer, struct nlattr **attrs)
@@ -338,7 +343,7 @@ static int set_allowedip(struct wg_peer *peer, struct nlattr **attrs)
 
 	if (!attrs[WGALLOWEDIP_A_FAMILY] || !attrs[WGALLOWEDIP_A_IPADDR] ||
 	    !attrs[WGALLOWEDIP_A_CIDR_MASK])
-		return ret;
+		WC_DEBUG_PR_NEG_RET(ret);
 	family = nla_get_u16(attrs[WGALLOWEDIP_A_FAMILY]);
 	cidr = nla_get_u8(attrs[WGALLOWEDIP_A_CIDR_MASK]);
 
@@ -355,7 +360,7 @@ static int set_allowedip(struct wg_peer *peer, struct nlattr **attrs)
 			nla_data(attrs[WGALLOWEDIP_A_IPADDR]), cidr, peer,
 			&peer->device->device_update_lock);
 
-	return ret;
+	WC_DEBUG_PR_NEG_RET(ret);
 }
 
 static int set_peer(struct wg_device *wg, struct nlattr **attrs)
@@ -492,7 +497,7 @@ out:
 	if (attrs[WGPEER_A_PRESHARED_KEY])
 		memzero_explicit(nla_data(attrs[WGPEER_A_PRESHARED_KEY]),
 				 nla_len(attrs[WGPEER_A_PRESHARED_KEY]));
-	return ret;
+	WC_DEBUG_PR_NEG_RET(ret);
 }
 
 static int wg_set_device(struct sk_buff *skb, struct genl_info *info)
@@ -610,7 +615,7 @@ out_nodev:
 	if (info->attrs[WGDEVICE_A_PRIVATE_KEY])
 		memzero_explicit(nla_data(info->attrs[WGDEVICE_A_PRIVATE_KEY]),
 				 nla_len(info->attrs[WGDEVICE_A_PRIVATE_KEY]));
-	return ret;
+	WC_DEBUG_PR_NEG_RET(ret);
 }
 
 #ifndef COMPAT_CANNOT_USE_CONST_GENL_OPS
@@ -660,7 +665,7 @@ __ro_after_init = {
 
 int __init wg_genetlink_init(void)
 {
-	return genl_register_family(&genl_family);
+	WC_DEBUG_PR_NEG_RET(genl_register_family(&genl_family));
 }
 
 void __exit wg_genetlink_uninit(void)

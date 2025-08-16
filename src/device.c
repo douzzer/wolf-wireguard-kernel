@@ -79,7 +79,7 @@ static int wg_open(struct net_device *dev)
 	}
 out:
 	mutex_unlock(&wg->device_update_lock);
-	return ret;
+	WC_DEBUG_PR_NEG_RET(ret);
 }
 
 #ifdef CONFIG_PM_SLEEP
@@ -231,7 +231,7 @@ err:
 	else if (skb->protocol == htons(ETH_P_IPV6))
 		icmpv6_ndo_send(skb, ICMPV6_DEST_UNREACH, ICMPV6_ADDR_UNREACH, 0);
 	kfree_skb(skb);
-	return ret;
+	WC_DEBUG_PR_NEG_RET(ret);
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
@@ -357,7 +357,7 @@ static int wg_newlink(struct net *src_net, struct net_device *dev,
 	wg_allowedips_init(&wg->peer_allowedips);
 	ret = wg_cookie_checker_init(&wg->cookie_checker, wg);
 	if (ret)
-		return ret;
+		WC_DEBUG_PR_NEG_RET(ret);
 
 	ret = -ENOMEM;
 
@@ -366,7 +366,7 @@ static int wg_newlink(struct net *src_net, struct net_device *dev,
 
 	wg->peer_hashtable = wg_pubkey_hashtable_alloc();
 	if (!wg->peer_hashtable)
-		return ret;
+		WC_DEBUG_PR_NEG_RET(ret);
 
 	wg->index_hashtable = wg_index_hashtable_alloc();
 	if (!wg->index_hashtable)
@@ -445,7 +445,7 @@ err_free_index_hashtable:
 	kvfree(wg->index_hashtable);
 err_free_peer_hashtable:
 	kvfree(wg->peer_hashtable);
-	return ret;
+	WC_DEBUG_PR_NEG_RET(ret);
 }
 
 static struct rtnl_link_ops link_ops __read_mostly = {
@@ -484,7 +484,7 @@ int __init wg_device_init(void)
 #ifdef CONFIG_PM_SLEEP
 	ret = register_pm_notifier(&pm_notifier);
 	if (ret)
-		return ret;
+		WC_DEBUG_PR_NEG_RET(ret);
 #endif
 
 	ret = register_pernet_device(&pernet_ops);
@@ -503,7 +503,7 @@ error_pm:
 #ifdef CONFIG_PM_SLEEP
 	unregister_pm_notifier(&pm_notifier);
 #endif
-	return ret;
+	WC_DEBUG_PR_NEG_RET(ret);
 }
 
 void wg_device_uninit(void)

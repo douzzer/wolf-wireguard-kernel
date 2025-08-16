@@ -32,7 +32,7 @@ enum cookie_values {
 	COOKIE_SECRET_MAX_AGE = 2 * 60,
 	COOKIE_SECRET_LATENCY = 5,
 	COOKIE_NONCE_LEN = AES_IV_SIZE,
-	COOKIE_LEN = 16
+	COOKIE_LEN = WC_SHA256_DIGEST_SIZE
 };
 
 enum counter_values {

@@ -62,6 +62,28 @@
 #define DBG_PRNT_NZ(...) (__VA_ARGS__)
 #endif
 
+#if defined(DEBUG) || defined(WOLFCRYPT_GLUE_DEBUG)
+
+#define WC_DEBUG_PR_IF_NEG(x) do { typeof(x) _ret = (x); if (_ret < 0) { pr_notice("value is %ld at %s %s L %d\n", (long int)_ret, __FILE__, __FUNCTION__, __LINE__); dump_stack(); } } while (0)
+#define WC_DEBUG_PR_NEG_RET(x) do { typeof(x) _ret = (x); if (_ret < 0) { pr_notice("returning %ld from %s %s L %d\n", (long int)_ret, __FILE__, __FUNCTION__, __LINE__); dump_stack(); } return _ret; } while (0)
+#define WC_DEBUG_PR_FALSE_RET(x) do { typeof(x) _ret = (x); if (! _ret) { pr_notice("returning false from %s %s L %d\n", __FILE__, __FUNCTION__, __LINE__); dump_stack(); } return _ret; } while (0)
+#define WC_DEBUG_PR_NULL_RET(x) do { typeof(x) _ret = (x); if (! _ret) { pr_notice("value is NULL at %s %s L %d\n", __FILE__, __FUNCTION__, __LINE__); dump_stack(); } return _ret; } while (0)
+#define WC_DEBUG_PR_VOID_RET do { pr_notice("return at %s %s L %d\n", __FILE__, __FUNCTION__, __LINE__); dump_stack(); return; } while (0)
+#define WC_DEBUG_PR_CODEPOINT() pr_notice("codepoint at %s %s L %d\n", __FILE__, __FUNCTION__, __LINE__)
+#define WC_DEBUG_PR(fmt, ...) pr_notice("%s %s L %d: " fmt, __FILE__, __FUNCTION__, __LINE__, ## __VA_ARGS__)
+
+#else
+
+#define WC_DEBUG_PR_IF_NEG(x) WC_DO_NOTHING
+#define WC_DEBUG_PR_NEG_RET(x) return(x)
+#define WC_DEBUG_PR_FALSE_RET(x) return(x)
+#define WC_DEBUG_PR_NULL_RET(x) return(x)
+#define WC_DEBUG_PR_VOID_RET return
+#define WC_DEBUG_PR_CODEPOINT() WC_DO_NOTHING
+#define WC_DEBUG_PR(fmt, ...) WC_DO_NOTHING
+
+#endif
+
 extern int wc_hmac_oneshot_prealloc(struct Hmac *wc_hmac, const int type, byte *out, const size_t out_space, const byte *message,
                                     const size_t message_len, const byte *key, const size_t key_len);
 
