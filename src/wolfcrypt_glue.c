@@ -296,10 +296,8 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
     int ret = -1;
     struct sg_mapping_iter miter;
     unsigned int flags;
-    int sl;
     Aes *aes = NULL;
     byte full_nonce[AES_IV_SIZE];
-    byte *buf = NULL;
 
     if (WARN_ON((src_len > UINT_MAX) ||
                 (ad_len > UINT_MAX) ||
@@ -357,6 +355,12 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
             ret = -EINVAL;
             goto out;
         }
+
+        if (miter.length < src_len + WC_AES_BLOCK_SIZE) {
+            sg_miter_stop(&miter);
+            goto copy_after_all;
+        }
+
         length = min_t(size_t, src_len, miter.length);
 
         if (isDecrypt) {
@@ -377,8 +381,7 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
         sg_miter_stop(&miter);
     }
     else {
-        byte *buf_p;
-
+    copy_after_all:
         byte *buf = (byte *)XMALLOC(src_len + WC_AES_BLOCK_SIZE, NULL, DYNAMIC_TYPE_TMP_BUFFER);
 
         if (! buf) {
@@ -386,85 +389,31 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
             goto out;
         }
 
-        buf_p = buf;
-
-        sg_miter_start(&miter, src, sg_nents(src), flags);
-        for (sl = src_len; sl > 0 && sg_miter_next(&miter); sl -= miter.length) {
-            size_t length = min_t(size_t, sl, miter.length);
-
-            memcpy(buf_p, miter.addr, length);
-            buf_p += length;
+        if (isDecrypt) {
+            scatterwalk_map_and_copy(buf, src, 0, src_len + WC_AES_BLOCK_SIZE, 0);
+            ret = wc_AesGcmDecrypt(aes, buf,
+                                   buf, (word32)src_len,
+                                   full_nonce, (word32)sizeof(full_nonce),
+                                   buf + src_len, WC_AES_BLOCK_SIZE,
+                                   ad, (word32)ad_len);
+            if (ret == 0)
+                scatterwalk_map_and_copy(buf, src, 0, src_len, 1);
         }
-
-        if (sl <= -WC_AES_BLOCK_SIZE) {
-            if (isDecrypt) {
-                memcpy(buf_p, miter.addr + miter.length - WC_AES_BLOCK_SIZE, WC_AES_BLOCK_SIZE);
-                ret = wc_AesGcmDecrypt(aes, buf,
-                                       buf, (word32)src_len,
-                                       full_nonce, (word32)sizeof(full_nonce),
-                                       buf + src_len, WC_AES_BLOCK_SIZE,
-                                       ad, (word32)ad_len);
-            }
-            else {
-                ret = wc_AesGcmEncrypt(aes, buf,
-                                       buf, (word32)src_len,
-                                       full_nonce, (word32)sizeof(full_nonce),
-                                       buf + src_len, WC_AES_BLOCK_SIZE,
-                                       ad, (word32)ad_len);
-            }
+        else {
+            scatterwalk_map_and_copy(buf, src, 0, src_len, 0);
+            ret = wc_AesGcmEncrypt(aes, buf,
+                                   buf, (word32)src_len,
+                                   full_nonce, (word32)sizeof(full_nonce),
+                                   buf + src_len, WC_AES_BLOCK_SIZE,
+                                   ad, (word32)ad_len);
+            if (ret == 0)
+                scatterwalk_map_and_copy(buf, src, 0, src_len + WC_AES_BLOCK_SIZE, 1);
         }
-
-        sg_miter_stop(&miter);
-
-        if (ret)
-            goto out;
-
-        if (sl > -WC_AES_BLOCK_SIZE) {
-            byte AuthTagBuf[WC_AES_BLOCK_SIZE];
-
-            if (isDecrypt) {
-                scatterwalk_map_and_copy(AuthTagBuf, src, src_len,
-                                         sizeof AuthTagBuf, 0 /* isEncrypt */);
-
-                ret = wc_AesGcmDecrypt(aes, buf,
-                                       buf, (word32)src_len,
-                                       full_nonce, (word32)sizeof(full_nonce),
-                                       AuthTagBuf, WC_AES_BLOCK_SIZE,
-                                       ad, (word32)ad_len);
-
-                if (ret < 0)
-                    goto out;
-            } else {
-                ret = wc_AesGcmEncrypt(aes, buf,
-                                       buf, (word32)src_len,
-                                       full_nonce, (word32)sizeof(full_nonce),
-                                       AuthTagBuf, WC_AES_BLOCK_SIZE,
-                                       ad, (word32)ad_len);
-
-                if (ret < 0)
-                    goto out;
-
-                scatterwalk_map_and_copy(AuthTagBuf, src, src_len,
-                                         sizeof AuthTagBuf, 1 /* isEncrypt */);
-            }
-        }
-
-        sg_miter_start(&miter, src, sg_nents(src), flags);
-        for (sl = src_len; sl > 0 && sg_miter_next(&miter); sl -= miter.length) {
-            size_t length = min_t(size_t, sl, miter.length);
-
-            memcpy(miter.addr, buf_p, length);
-            buf_p += length;
-        }
-        sg_miter_stop(&miter);
+        free(buf);
     }
-
-    ret = 0;
 
   out:
 
-    if (buf)
-        free(buf);
     wc_AesFree(aes);
     free(aes);
 
