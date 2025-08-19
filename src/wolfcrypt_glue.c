@@ -174,23 +174,21 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
                 (key_len > UINT_MAX)))
     {
         ret = -EINVAL;
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
-    }
-
-    if (isDecrypt) {
-	if (unlikely(src_len < WC_AES_BLOCK_SIZE))
-            WC_DEBUG_PR_FALSE_RET(false);
     }
 
     aes = (Aes *)XMALLOC(sizeof *aes, NULL, DYNAMIC_TYPE_TMP_BUFFER);
     if (! aes) {
         ret = -ENOMEM;
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
     }
 
     ret = wc_AesInit(aes, NULL, INVALID_DEVID);
     if (ret != 0) {
         ret = -EINVAL;
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
     }
 
@@ -206,8 +204,10 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
     else
         ret = wc_AesGcmEncryptInit(aes, key, (word32)key_len,
                                    full_nonce, (word32)sizeof(full_nonce));
-    if (ret != 0)
+    if (ret != 0) {
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
+    }
 
     if (ad) {
         if (isDecrypt)
@@ -216,8 +216,10 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
         else
             ret = wc_AesGcmEncryptUpdate(aes, NULL, NULL,
                                          0, ad, ad_len);
-        if (ret != 0)
+        if (ret != 0) {
+            WC_DEBUG_PR_CODEPOINT();
             goto out;
+        }
     }
 
     flags = SG_MITER_TO_SG;
@@ -235,8 +237,10 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
         else
             ret = wc_AesGcmEncryptUpdate(aes, miter.addr, miter.addr,
                                          length, NULL, 0);
-        if (ret != 0)
+        if (ret != 0) {
+            WC_DEBUG_PR_CODEPOINT();
             goto out;
+        }
     }
 
     /* the remaining length (sl) really will be conditionally negative after
@@ -249,8 +253,10 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
             ret = wc_AesGcmDecryptFinal(aes, miter.addr + miter.length + sl, WC_AES_BLOCK_SIZE);
         else
             ret = wc_AesGcmEncryptFinal(aes, miter.addr + miter.length + sl, WC_AES_BLOCK_SIZE);
-        if (ret < 0)
+        if (ret < 0) {
+            WC_DEBUG_PR_CODEPOINT();
             goto out;
+        }
     }
 
     sg_miter_stop(&miter);
@@ -304,18 +310,13 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
                 (key_len > UINT_MAX)))
     {
         ret = -EINVAL;
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
-    }
-
-    if (isDecrypt) {
-	if (unlikely(src_len < WC_AES_BLOCK_SIZE)) {
-            ret = -EINVAL;
-            goto out;
-        }
     }
 
     if (sg_nents(src) < 1) {
         ret = -EINVAL;
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
     }
 
@@ -327,6 +328,7 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
     ret = wc_AesInit(aes, NULL, INVALID_DEVID);
     if (ret != 0) {
         ret = -EINVAL;
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
     }
 
@@ -343,6 +345,7 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
     ret = wc_AesGcmSetKey(aes, key, (word32)key_len);
     if (ret) {
         ret = -EINVAL;
+        WC_DEBUG_PR_CODEPOINT();
         goto out;
     }
 
@@ -353,6 +356,7 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
         if ((sg_nents(src) == 1) && (! sg_miter_next(&miter))) {
             sg_miter_stop(&miter);
             ret = -EINVAL;
+            WC_DEBUG_PR_CODEPOINT();
             goto out;
         }
 
@@ -386,6 +390,7 @@ static __always_inline bool wc_AesGcm_crypt_sg_inplace(struct scatterlist *src, 
 
         if (! buf) {
             ret = -ENOMEM;
+            WC_DEBUG_PR_CODEPOINT();
             goto out;
         }
 
