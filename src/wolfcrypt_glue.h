@@ -203,6 +203,7 @@ struct wc_linuxkm_drbg_ctx {
         WC_RNG rng;
         byte rnd_pool[1024];
         word32 rnd_pool_offset;
+        int disabled_vec_ops;
     } *rngs; /* one per CPU ID */
 };
 extern struct wc_linuxkm_drbg_ctx wc_wg_drbg;

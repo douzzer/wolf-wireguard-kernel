@@ -761,6 +761,10 @@ int wc_linuxkm_drbg_init_ctx(struct wc_linuxkm_drbg_ctx *ctx)
  *
  * Note that wc_linuxkm_drbg_init_ctx() allocates at least 4 DRBGs, regardless
  * of nominal core count, to avoid stalling generators on unicore targets.
+ *
+ * Note also, vector ops are always disabled while a DRBG is checked out, to be
+ * sure no vectorized function pointers will be cached making the DRBG unusable
+ * from vector-unsafe contexts.
  */
 
 struct wc_rng_inst *get_drbg(struct wc_linuxkm_drbg_ctx *ctx) {
@@ -787,8 +791,11 @@ struct wc_rng_inst *get_drbg(struct wc_linuxkm_drbg_ctx *ctx) {
 
     for (;;) {
         int expected = 0;
-        if (likely(__atomic_compare_exchange_n(&ctx->rngs[n].lock, &expected, new_lock_value, 0, __ATOMIC_SEQ_CST, __ATOMIC_ACQUIRE)))
-            return &ctx->rngs[n];
+        if (likely(__atomic_compare_exchange_n(&ctx->rngs[n].lock, &expected, new_lock_value, 0, __ATOMIC_SEQ_CST, __ATOMIC_ACQUIRE))) {
+            struct wc_rng_inst *drbg = &ctx->rngs[n];
+            drbg->disabled_vec_ops = (DISABLE_VECTOR_REGISTERS() == 0);
+            return drbg;
+        }
         ++n;
         if (n >= (int)ctx->n_rngs)
             n = 0;
@@ -806,8 +813,11 @@ struct wc_rng_inst *get_drbg_n(struct wc_linuxkm_drbg_ctx *ctx, int n) {
 
     for (;;) {
         int expected = 0;
-        if (likely(__atomic_compare_exchange_n(&ctx->rngs[n].lock, &expected, 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_ACQUIRE)))
-            return &ctx->rngs[n];
+        if (likely(__atomic_compare_exchange_n(&ctx->rngs[n].lock, &expected, 1, 0, __ATOMIC_SEQ_CST, __ATOMIC_ACQUIRE))) {
+            struct wc_rng_inst *drbg = &ctx->rngs[n];
+            drbg->disabled_vec_ops = 0;
+            return drbg;
+        }
         if (can_sleep) {
             if (signal_pending(current))
                 return NULL;
@@ -825,6 +835,10 @@ void put_drbg(struct wc_rng_inst *drbg) {
         (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0))
     int migration_disabled = (drbg->lock == 2);
     #endif
+    if (drbg->disabled_vec_ops) {
+        REENABLE_VECTOR_REGISTERS();
+        drbg->disabled_vec_ops = 0;
+    }
     __atomic_store_n(&(drbg->lock),0,__ATOMIC_RELEASE);
     #if defined(CONFIG_SMP) && !defined(CONFIG_PREEMPT_COUNT) && \
         (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 7, 0))
@@ -839,7 +853,7 @@ int wc_linuxkm_drbg_generate(struct wc_linuxkm_drbg_ctx *ctx,
                              int nofail_p)
 {
     int ret, retried = 0;
-    int need_put_drbg = 0, need_fpu_restore = 0;
+    int need_put_drbg = 0;
     struct wc_rng_inst *drbg = get_drbg(ctx);
 
     if (! drbg) {
@@ -857,11 +871,6 @@ int wc_linuxkm_drbg_generate(struct wc_linuxkm_drbg_ctx *ctx,
         return 0;
     }
 
-    /* make sure we don't cache an underlying SHA256 method that uses vector
-     * insns (forbidden from irq handlers).
-     */
-    need_fpu_restore = (DISABLE_VECTOR_REGISTERS() == 0);
-
 retry:
 
 #if defined(HAVE_FIPS) && FIPS_VERSION_LT(6,0)
@@ -869,10 +878,7 @@ retry:
     (void)slen;
 #else
     if (slen > 0) {
-        int need_reenable_vec = (DISABLE_VECTOR_REGISTERS() == 0);
         ret = wc_RNG_DRBG_Reseed(&drbg->rng, src, slen);
-        if (need_reenable_vec)
-            REENABLE_VECTOR_REGISTERS();
         if (ret != 0) {
             pr_warn_once("WARNING: wc_RNG_DRBG_Reseed returned %d.\n",ret);
             ret = -EINVAL;
@@ -882,10 +888,7 @@ retry:
 #endif
 
     if (dlen <= 8) {
-        int need_reenable_vec = (DISABLE_VECTOR_REGISTERS() == 0);
         ret = wc_RNG_GenerateBlock(&drbg->rng, drbg->rnd_pool, (word32)sizeof(drbg->rnd_pool));
-        if (need_reenable_vec)
-            REENABLE_VECTOR_REGISTERS();
         if (ret == 0) {
             memcpy(dst, drbg->rnd_pool, dlen);
             ForceZero(drbg->rnd_pool, dlen);
@@ -894,10 +897,7 @@ retry:
         }
     }
     else {
-        int need_reenable_vec = (DISABLE_VECTOR_REGISTERS() == 0);
         ret = wc_RNG_GenerateBlock(&drbg->rng, dst, dlen);
-        if (need_reenable_vec)
-            REENABLE_VECTOR_REGISTERS();
     }
 
     if (unlikely(ret == WC_NO_ERR_TRACE(RNG_FAILURE_E)) && (! retried)) {
@@ -907,8 +907,6 @@ retry:
         wc_FreeRng(&drbg->rng);
         need_reenable_vec = (DISABLE_VECTOR_REGISTERS() == 0);
         ret = wc_InitRng(&drbg->rng);
-        if (need_reenable_vec)
-            REENABLE_VECTOR_REGISTERS();
         if (ret == 0) {
             pr_warn("WARNING: reinitialized DRBG #%d after RNG_FAILURE_E with status %u.", raw_smp_processor_id(), cur_rng_status);
             goto retry;
@@ -925,8 +923,6 @@ retry:
 
 out:
 
-    if (need_fpu_restore)
-        REENABLE_VECTOR_REGISTERS();
     if (need_put_drbg)
         put_drbg(drbg);
 
