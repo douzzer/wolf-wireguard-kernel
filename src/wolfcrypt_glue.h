@@ -43,7 +43,6 @@
 #include <wolfcrypt/src/misc.c>
 
 #include <linux/kconfig.h>
-#include <linux/simd.h>
 #include <linux/kernel.h>
 #include <linux/scatterlist.h>
 

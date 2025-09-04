@@ -17,22 +17,6 @@ ccflags-y += -I$(kbuild-dir)/compat/dst_cache/include
 wolfguard-y += compat/dst_cache/dst_cache.o
 endif
 
-ifeq ($(wildcard $(srctree)/arch/x86/include/asm/intel-family.h)$(CONFIG_X86),y)
-ccflags-y += -I$(kbuild-dir)/compat/intel-family-x86/include
-endif
-
-ifeq ($(wildcard $(srctree)/arch/x86/include/asm/fpu/api.h)$(CONFIG_X86),y)
-ccflags-y += -I$(kbuild-dir)/compat/fpu-x86/include
-endif
-
-ifeq ($(wildcard $(srctree)/arch/$(SRCARCH)/include/asm/simd.h)$(shell grep -s -F "generic-y += simd.h" "$(srctree)/arch/$(SRCARCH)/Kbuild" "$(srctree)/arch/$(SRCARCH)/Makefile"),)
-ccflags-y += -I$(kbuild-dir)/compat/simd-asm/include
-endif
-
-ifeq ($(wildcard $(srctree)/include/linux/simd.h),)
-ccflags-y += -I$(kbuild-dir)/compat/simd/include
-endif
-
 ifeq ($(wildcard $(srctree)/include/net/udp_tunnel.h),)
 ccflags-y += -I$(kbuild-dir)/compat/udp_tunnel/include
 wolfguard-y += compat/udp_tunnel/udp_tunnel.o

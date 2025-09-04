@@ -959,16 +959,6 @@ static const struct header_ops ip_tunnel_header_ops = { .parse_protocol = ip_tun
 #define kfree_sensitive(a) kzfree(a)
 #endif
 
-#if defined(ISUBUNTU1604) || defined(ISRHEL7)
-#include <linux/siphash.h>
-#ifndef _WG_LINUX_SIPHASH_H
-#define hsiphash_1u32 siphash_1u32
-#define hsiphash_2u32 siphash_2u32
-#define hsiphash_3u32 siphash_3u32
-#define hsiphash_key_t siphash_key_t
-#endif
-#endif
-
 #ifdef CONFIG_VE
 #include <linux/netdev_features.h>
 #ifdef NETIF_F_VIRTUAL
