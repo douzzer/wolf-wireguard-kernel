@@ -11,6 +11,11 @@
 #include "peer.h"
 #include "messages.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+    /* kludge to work around broken pagemap.h, re min() and max(), due to 84429b675bcfd */
+    #define _LINUX_PAGEMAP_H
+#endif /* >= 6.12.0 */
+
 #include <linux/module.h>
 #include <linux/rtnetlink.h>
 #include <linux/inet.h>
@@ -23,6 +28,16 @@
 #include <net/rtnetlink.h>
 #include <net/ip_tunnels.h>
 #include <net/addrconf.h>
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 10)) || \
+    (defined(RHEL_MAJOR) && ((RHEL_MAJOR > 9) || ((RHEL_MAJOR == 9) && (RHEL_MINOR >= 5))))
+#include <net/gso.h>
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+    /* see linux 326534e837 and 8fa7292fee */
+    #define del_timer timer_delete
+    #define del_timer_sync timer_delete_sync
+#endif
 
 static LIST_HEAD(device_list);
 
@@ -219,6 +234,15 @@ err:
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+static void ip_tunnel_get_stats64(struct net_device *dev,
+			   struct rtnl_link_stats64 *tot)
+{
+	netdev_stats_to_stats64(tot, &dev->stats);
+	dev_fetch_sw_netstats(tot, dev->tstats);
+}
+#endif
+
 static const struct net_device_ops netdev_ops = {
 	.ndo_open		= wg_open,
 	.ndo_stop		= wg_stop,
@@ -282,7 +306,11 @@ static void wg_setup(struct net_device *dev)
 #else
 	dev->tx_queue_len = 0;
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0)
+        dev->lltx = true;
+#else
 	dev->features |= NETIF_F_LLTX;
+#endif
 	dev->features |= WG_NETDEV_FEATURES;
 	dev->hw_features |= WG_NETDEV_FEATURES;
 	dev->hw_enc_features |= WG_NETDEV_FEATURES;
@@ -300,14 +328,27 @@ static void wg_setup(struct net_device *dev)
 	wg->dev = dev;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+static int wg_newlink(struct net_device *dev,
+                      struct rtnl_newlink_params *params,
+                      struct netlink_ext_ack *extack)
+#else
 static int wg_newlink(struct net *src_net, struct net_device *dev,
 		      struct nlattr *tb[], struct nlattr *data[],
 		      struct netlink_ext_ack *extack)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+	struct net *link_net = rtnl_newlink_link_net(params);
+#endif
 	struct wg_device *wg = netdev_priv(dev);
 	int ret = -ENOMEM;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 15, 0)
+	rcu_assign_pointer(wg->creating_net, link_net);
+#else
 	rcu_assign_pointer(wg->creating_net, src_net);
+#endif
 	init_rwsem(&wg->static_identity.lock);
 	mutex_init(&wg->socket_update_lock);
 	mutex_init(&wg->device_update_lock);

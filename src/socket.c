@@ -49,7 +49,11 @@ static int send4(struct wg_device *wg, struct sk_buff *skb,
 		rt = dst_cache_get_ip4(cache, &fl.saddr);
 
 	if (!rt) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+		security_sk_classify_flow(sock, flowi4_to_flowi_common(&fl));
+#else
 		security_sk_classify_flow(sock, flowi4_to_flowi(&fl));
+#endif
 		if (unlikely(!inet_confirm_addr(sock_net(sock), NULL, 0,
 						fl.saddr, RT_SCOPE_HOST))) {
 			endpoint->src4.s_addr = 0;
@@ -82,9 +86,15 @@ static int send4(struct wg_device *wg, struct sk_buff *skb,
 	}
 
 	skb->ignore_df = 1;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 	udp_tunnel_xmit_skb(rt, sock, skb, fl.saddr, fl.daddr, ds,
 			    ip4_dst_hoplimit(&rt->dst), 0, fl.fl4_sport,
 			    fl.fl4_dport, false, false);
+#else
+	udp_tunnel_xmit_skb(rt, sock, skb, fl.saddr, fl.daddr, ds,
+			    ip4_dst_hoplimit(&rt->dst), 0, fl.fl4_sport,
+			    fl.fl4_dport, false, false, 0);
+#endif
 	goto out;
 
 err:
@@ -129,14 +139,24 @@ static int send6(struct wg_device *wg, struct sk_buff *skb,
 		dst = dst_cache_get_ip6(cache, &fl.saddr);
 
 	if (!dst) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
+		security_sk_classify_flow(sock, flowi6_to_flowi_common(&fl));
+#else
 		security_sk_classify_flow(sock, flowi6_to_flowi(&fl));
+#endif
 		if (unlikely(!ipv6_addr_any(&fl.saddr) &&
 			     !ipv6_chk_addr(sock_net(sock), &fl.saddr, NULL, 0))) {
 			endpoint->src6 = fl.saddr = in6addr_any;
 			if (cache)
 				dst_cache_reset(cache);
 		}
-		dst = ipv6_stub->ipv6_dst_lookup_flow(sock_net(sock), sock, &fl,
+		/* 343d60aada (v4.16) adds net arg to ipv6_stub_impl.ipv6_dst_lookup,
+		 * c4e85f73af (v5.5) adds it to ip6_dst_lookup_flow() (sunrise for the
+		 * below code pattern), and ipv6_stub is slated for removal (along
+		 * with net/ipv6_stubs.h) circa v7.1, linux-next commit
+		 * 964870b4b9.
+		 */
+		dst = ip6_dst_lookup_flow(sock_net(sock), sock, &fl,
 						      NULL);
 		if (unlikely(IS_ERR(dst))) {
 			ret = PTR_ERR(dst);
@@ -149,9 +169,15 @@ static int send6(struct wg_device *wg, struct sk_buff *skb,
 	}
 
 	skb->ignore_df = 1;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
 	udp_tunnel6_xmit_skb(dst, sock, skb, skb->dev, &fl.saddr, &fl.daddr, ds,
 			     ip6_dst_hoplimit(dst), 0, fl.fl6_sport,
 			     fl.fl6_dport, false);
+#else
+	udp_tunnel6_xmit_skb(dst, sock, skb, skb->dev, &fl.saddr, &fl.daddr, ds,
+			     ip6_dst_hoplimit(dst), 0, fl.fl6_sport,
+			     fl.fl6_dport, false, 0);
+#endif
 	goto out;
 
 err:
@@ -335,7 +361,11 @@ static void sock_free(struct sock *sock)
 	if (unlikely(!sock))
 		return;
 	sk_clear_memalloc(sock);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 5)
 	udp_tunnel_sock_release(sock->sk_socket);
+#else
+	udp_tunnel_sock_release(sock);
+#endif
 }
 
 static void set_sock_opts(struct socket *sock)
@@ -389,14 +419,22 @@ retry:
 		goto out;
 	}
 	set_sock_opts(new4);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 5)
 	setup_udp_tunnel_sock(net, new4, &cfg);
+#else
+	setup_udp_tunnel_sock(net, new4->sk, &cfg);
+#endif
 
 #if IS_ENABLED(CONFIG_IPV6)
 	if (ipv6_mod_enabled()) {
 		port6.local_udp_port = inet_sk(new4->sk)->inet_sport;
 		ret = udp_sock_create(net, &port6, &new6);
 		if (ret < 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 5)
 			udp_tunnel_sock_release(new4);
+#else
+			udp_tunnel_sock_release(new4->sk);
+#endif
 			if (ret == -EADDRINUSE && !port && retries++ < 100)
 				goto retry;
 			pr_err("%s: Could not create IPv6 socket\n",
@@ -404,7 +442,11 @@ retry:
 			goto out;
 		}
 		set_sock_opts(new6);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 1, 5)
 		setup_udp_tunnel_sock(net, new6, &cfg);
+#else
+		setup_udp_tunnel_sock(net, new6->sk, &cfg);
+#endif
 	}
 #endif
 

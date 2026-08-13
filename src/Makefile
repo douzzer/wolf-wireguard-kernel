@@ -32,7 +32,11 @@ clean:
 	@$(MAKE) -C $(KERNELDIR) M=$(PWD) clean
 
 module-install:
+ifdef WOLFCRYPT
+	@$(MAKE) -C $(KERNELDIR) M=$(PWD) WIREGUARD_VERSION="$(WIREGUARD_VERSION)" INSTALL_MOD_DIR=wolfssl modules_install
+else
 	@$(MAKE) -C $(KERNELDIR) M=$(PWD) WIREGUARD_VERSION="$(WIREGUARD_VERSION)" modules_install
+endif
 	$(DEPMOD) -b "$(DEPMODBASEDIR)" -a $(KERNELRELEASE)
 
 install: module-install

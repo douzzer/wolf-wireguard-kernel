@@ -10,8 +10,10 @@
 #include "ratelimiter.h"
 #include "timers.h"
 
+#ifndef WOLFCRYPTO_SHIM_H
 #include <zinc/blake2s.h>
 #include <zinc/chacha20poly1305.h>
+#endif
 
 #include <net/ipv6.h>
 #include <crypto/algapi.h>
